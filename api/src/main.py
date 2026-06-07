@@ -11,7 +11,7 @@ from .db import create_tables
 from .routers import projects, anchors, candidates, snapshots
 from . import storage
 
-STATIC_DIR = Path(__file__).parent.parent.parent / "static"
+STATIC_DIR = Path(__file__).parent.parent / "static"
 
 
 @asynccontextmanager
