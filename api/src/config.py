@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     s3_bucket: str = "reno-viewer"
     s3_presign_expires: int = 86400         # presigned URL lifetime in seconds (default 24h)
 
-    auth_username: str = "bishanridges"
-    auth_password_hash: str  # bcrypt hash — set in .env
+    auth_username: str = "reo"
+    auth_password: str = "hwee"  # plaintext — fine for single-user personal app
     jwt_secret: str  # random hex string — set in .env
     jwt_expire_hours: int = 72
 
