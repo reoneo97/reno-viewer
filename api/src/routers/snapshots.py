@@ -39,7 +39,7 @@ def _project_to_snapshot_data(project: Project) -> dict:
                     {
                         "id": str(c.id),
                         "name": c.name,
-                        "url": _key_to_data_url(c.image_key) if c.image_key else "",
+                        "urls": [_key_to_data_url(p.image_key) for p in c.photos if p.image_key],
                         "description": c.description or "",
                         "width": c.width or "",
                         "height": c.height or "",
@@ -260,9 +260,9 @@ def _build_html(data: dict) -> str:
         anchor.candidates.forEach(function(c) {{
           var row = document.createElement('div');
           row.className = 'sidebar-candidate';
-          if (c.url) {{
+          if (c.urls && c.urls[0]) {{
             var img = document.createElement('img');
-            img.src = c.url; img.alt = c.name;
+            img.src = c.urls[0]; img.alt = c.name;
             row.appendChild(img);
           }} else {{
             var noImg = document.createElement('div');
@@ -391,9 +391,9 @@ def _build_html(data: dict) -> str:
         anchor.candidates.forEach(function(c) {{
           var card = document.createElement('div');
           card.className = 'candidate-card';
-          if (c.url) {{
+          if (c.urls && c.urls[0]) {{
             var img = document.createElement('img');
-            img.src = c.url; img.alt = c.name;
+            img.src = c.urls[0]; img.alt = c.name;
             card.appendChild(img);
           }}
           var overlay = document.createElement('div');
