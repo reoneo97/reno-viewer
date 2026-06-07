@@ -101,6 +101,8 @@ def _build_html(data: dict) -> str:
     .sidebar-candidate img, .sidebar-no-img {{ width: 52px; height: 52px; object-fit: cover;
                               border-radius: 4px; flex-shrink: 0; border: 1px solid #2a2a4a; }}
     .sidebar-no-img {{ background: #0f0f1a; }}
+    .sidebar-img-strip {{ display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }}
+    .sidebar-img-strip img {{ width: 52px; height: 52px; object-fit: cover; border-radius: 4px; border: 1px solid #2a2a4a; display: block; }}
     .sidebar-candidate-info {{ flex: 1; display: flex; flex-direction: column; gap: 3px; justify-content: center; min-width: 0; }}
     .sidebar-candidate-name {{ font-size: .78rem; font-weight: 600; color: #ccc;
                                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
@@ -260,10 +262,15 @@ def _build_html(data: dict) -> str:
         anchor.candidates.forEach(function(c) {{
           var row = document.createElement('div');
           row.className = 'sidebar-candidate';
-          if (c.urls && c.urls[0]) {{
-            var img = document.createElement('img');
-            img.src = c.urls[0]; img.alt = c.name;
-            row.appendChild(img);
+          if (c.urls && c.urls.length > 0) {{
+            var strip = document.createElement('div');
+            strip.className = 'sidebar-img-strip';
+            c.urls.forEach(function(url) {{
+              var img = document.createElement('img');
+              img.src = url; img.alt = c.name;
+              strip.appendChild(img);
+            }});
+            row.appendChild(strip);
           }} else {{
             var noImg = document.createElement('div');
             noImg.className = 'sidebar-no-img';
