@@ -13,8 +13,8 @@ _MIGRATIONS = [
         position INTEGER NOT NULL DEFAULT 0
     )""",
     # migrate existing single image_key into candidatephotos
-    """INSERT INTO candidatephotos (candidate_id, image_key, position)
-       SELECT id, image_key, 0 FROM candidates
+    """INSERT INTO candidatephotos (id, candidate_id, image_key, position)
+       SELECT gen_random_uuid(), id, image_key, 0 FROM candidates
        WHERE image_key IS NOT NULL
          AND id NOT IN (SELECT candidate_id FROM candidatephotos)""",
     # make anchor_id nullable — candidates are now linked via anchor_candidates join table
