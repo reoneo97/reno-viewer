@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.venv/
+api/.venv/
+api/tests/
+*.pyc
+__pycache__/
+.env*
+!.env.production
