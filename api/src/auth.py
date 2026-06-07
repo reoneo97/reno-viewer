@@ -1,5 +1,7 @@
+import base64
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -11,8 +13,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer()
 
 
-def _verify_password(plain: str, expected: str) -> bool:
-    return plain == expected
+def _verify_password(plain: str, b64_hash: str) -> bool:
+    hashed = base64.b64decode(b64_hash.encode())
+    return bcrypt.checkpw(plain.encode(), hashed)
 
 
 def _create_token(username: str) -> str:
@@ -38,7 +41,7 @@ class TokenResponse(BaseModel):
 def login(body: LoginRequest):
     valid = (
         body.username == settings.auth_username
-        and _verify_password(body.password, settings.auth_password)
+        and _verify_password(body.password, settings.auth_password_hash)
     )
     if not valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
