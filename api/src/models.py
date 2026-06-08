@@ -70,6 +70,7 @@ class Anchor(SQLModel, table=True):
     y: float
     label: str
     category: Optional[str] = None
+    notes: Optional[str] = None
     created_at: datetime = Field(default_factory=_now)
 
     project: Optional["Project"] = Relationship(back_populates="anchors")
@@ -146,6 +147,7 @@ class AnchorCreate(SQLModel):
     y: float
     label: str
     category: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class AnchorUpdate(SQLModel):
@@ -153,6 +155,7 @@ class AnchorUpdate(SQLModel):
     y: Optional[float] = None
     label: Optional[str] = None
     category: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class CandidateUpdate(SQLModel):
@@ -193,6 +196,7 @@ class AnchorRead(SQLModel):
     y: float
     label: str
     category: Optional[str] = None
+    notes: Optional[str] = None
     created_at: datetime
     candidates: List[CandidateRead] = []
 

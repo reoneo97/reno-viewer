@@ -46,6 +46,7 @@ export interface Anchor {
   y: number          // percentage of image height
   label: string
   category: string
+  notes: string
   candidates: CandidateImage[]
 }
 
@@ -72,6 +73,7 @@ export interface ApiAnchor {
   y: number
   label: string
   category: string | null
+  notes: string | null
   created_at: string
   candidates: ApiCandidate[]
 }
@@ -93,6 +95,7 @@ export function mapApiAnchor(a: ApiAnchor): Anchor {
     y: a.y,
     label: a.label,
     category: a.category ?? '',
+    notes: a.notes ?? '',
     candidates: a.candidates.map((c) => ({
       id: c.id,
       name: c.name,

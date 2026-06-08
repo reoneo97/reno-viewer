@@ -29,6 +29,7 @@ _MIGRATIONS = [
        SELECT anchor_id, id FROM candidates
        WHERE anchor_id IS NOT NULL
        ON CONFLICT DO NOTHING""",
+    "ALTER TABLE anchors ADD COLUMN IF NOT EXISTS notes TEXT",
 ]
 
 

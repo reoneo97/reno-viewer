@@ -1676,6 +1676,65 @@ button:disabled {
   border-radius: 12px;
 }
 
+/* ── Budget table ───────────────────────────────────── */
+.budget-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin-bottom: 16px;
+}
+
+.budget-th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.budget-th-right { text-align: right; }
+
+.budget-row { transition: background 0.1s; }
+.budget-row:hover { background: var(--surface-3); }
+
+.budget-td {
+  padding: 9px 8px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.budget-td-right { text-align: right; }
+
+.budget-amount {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-total-row { background: var(--surface-3); }
+
+.budget-total-label {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.budget-total-amount {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-note {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
 /* ── Keyframes ──────────────────────────────────────── */
 @keyframes spin {
   to { transform: rotate(360deg); }

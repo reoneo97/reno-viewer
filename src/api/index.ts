@@ -43,9 +43,13 @@ export function createAnchor(
 
 export function updateAnchor(
   anchorId: string,
-  data: { label?: string; category?: string; x?: number; y?: number },
+  data: { label?: string; category?: string; notes?: string; x?: number; y?: number },
 ): Promise<ApiAnchor> {
   return http.patch(`/anchors/${anchorId}`, data)
+}
+
+export function duplicateAnchor(anchorId: string): Promise<ApiAnchor> {
+  return http.post(`/anchors/${anchorId}/duplicate`, {})
 }
 
 export function deleteAnchor(anchorId: string): Promise<null> {

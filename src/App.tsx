@@ -10,7 +10,9 @@ import { ProjectSelector } from './components/ProjectSelector'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ToastHost, toast } from './components/Toast'
 import { ConfirmHost } from './components/ConfirmDialog'
+import { BudgetModal } from './components/BudgetModal'
 import { useEscapeKey } from './hooks/useEscapeKey'
+import { downloadCsv } from './utils/csvExport'
 import './App.css'
 
 type Phase = 'loading' | 'login' | 'select' | 'view'
@@ -23,6 +25,7 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
+  const [showBudget, setShowBudget] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEscapeKey(() => setShareUrl(null), shareUrl !== null)
@@ -193,12 +196,25 @@ export default function App() {
               >
                 ☰ List
               </button>
+              {anchors.length > 0 && (
+                <button className="btn-secondary" onClick={() => setShowBudget(true)}>
+                  Budget
+                </button>
+              )}
               <button className="btn-secondary" onClick={handleShare} disabled={isExporting}>
                 {isExporting ? 'Working…' : 'Share'}
               </button>
               <button className="btn-secondary" onClick={handleExport} disabled={isExporting}>
                 Export
               </button>
+              {anchors.length > 0 && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => { downloadCsv(anchors, project!.name); toast.success('CSV downloaded') }}
+                >
+                  CSV
+                </button>
+              )}
             </>
           )}
 
@@ -257,6 +273,10 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {showBudget && (
+        <BudgetModal anchors={anchors} onClose={() => setShowBudget(false)} />
+      )}
 
       <ToastHost />
       <ConfirmHost />

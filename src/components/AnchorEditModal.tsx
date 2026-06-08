@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Anchor, CandidateImage } from '../types'
 import { ANCHOR_CATEGORIES } from '../types'
-import { addCandidateImage, createCandidate, deleteCandidate, removeFromAnchor, deleteAnchor, updateAnchor, updateCandidate } from '../api'
+import { addCandidateImage, createCandidate, deleteCandidate, removeFromAnchor, deleteAnchor, updateAnchor, updateCandidate, duplicateAnchor } from '../api'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { confirmDialog } from './ConfirmDialog'
 import { toast } from './Toast'
@@ -37,6 +37,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
   const [mode, setMode] = useState<'list' | 'add'>('list')
   const [label, setLabel] = useState(anchor.label)
   const [category, setCategory] = useState(anchor.category)
+  const [notes, setNotes] = useState(anchor.notes)
   const [candidates, setCandidates] = useState<CandidateImage[]>(anchor.candidates)
   const [toDelete, setToDelete] = useState<Set<string>>(new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -216,6 +217,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
       await updateAnchor(anchor.id, {
         label: label.trim() || anchor.label,
         category: category || undefined,
+        notes: notes.trim() || undefined,
       })
       onSave()
     } finally {
@@ -238,6 +240,22 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
     try {
       await deleteAnchor(anchor.id)
       onSave()
+    } finally {
+      inFlight.current = false
+      setSaving(false)
+    }
+  }
+
+  const handleDuplicate = async () => {
+    if (inFlight.current) return
+    inFlight.current = true
+    setSaving(true)
+    try {
+      await duplicateAnchor(anchor.id)
+      toast.success(`Duplicated "${anchor.label}"`)
+      onSave()
+    } catch {
+      toast.error('Failed to duplicate anchor')
     } finally {
       inFlight.current = false
       setSaving(false)
@@ -410,6 +428,15 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
             {ANCHOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
 
+          <label className="field-label" style={{ marginTop: 16 }}>Notes</label>
+          <textarea
+            className="text-input text-area"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Constraints, measurements, reminders…"
+            rows={2}
+          />
+
           <div className="candidates-section-header">
             <label className="field-label">Candidates ({candidates.length})</label>
             <button className="btn-add-candidate" onClick={() => setMode('add')}>＋</button>
@@ -551,7 +578,10 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
         </div>
 
         <div className="modal-footer">
-          <button className="btn-danger" onClick={handleDelete} disabled={anyBusy}>Delete Anchor</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-danger" onClick={handleDelete} disabled={anyBusy}>Delete</button>
+            <button className="btn-secondary" onClick={handleDuplicate} disabled={anyBusy} title="Duplicate this anchor">Duplicate</button>
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn-secondary" onClick={onClose} disabled={anyBusy}>Cancel</button>
             <button className="btn-primary" onClick={handleSave} disabled={anyBusy}>
