@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import type { ApiProject } from '../types'
 import { createProject, deleteProject } from '../api'
+import { ThemeToggle } from './ThemeToggle'
+import { confirmDialog } from './ConfirmDialog'
+import { toast } from './Toast'
 
 interface Props {
   projects: ApiProject[]
@@ -29,9 +32,20 @@ export function ProjectSelector({ projects, onSelect, onProjectsChange, onLogout
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    if (!confirm('Delete this project?')) return
-    await deleteProject(id)
-    onProjectsChange(projects.filter((p) => p.id !== id))
+    const ok = await confirmDialog({
+      title: 'Delete project',
+      message: 'This will permanently delete the project and all its anchors. This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await deleteProject(id)
+      onProjectsChange(projects.filter((p) => p.id !== id))
+      toast.success('Project deleted')
+    } catch (err) {
+      toast.error(`Delete failed: ${err instanceof Error ? err.message : err}`)
+    }
   }
 
   return (
@@ -42,6 +56,7 @@ export function ProjectSelector({ projects, onSelect, onProjectsChange, onLogout
           <button className="btn-secondary" onClick={() => setCreating(true)}>
             + New Project
           </button>
+          <ThemeToggle />
           <button className="btn-secondary" onClick={onLogout}>
             Sign out
           </button>
@@ -87,6 +102,7 @@ export function ProjectSelector({ projects, onSelect, onProjectsChange, onLogout
                     className="remove-btn"
                     onClick={(e) => handleDelete(e, p.id)}
                     title="Delete project"
+                    aria-label={`Delete project ${p.name}`}
                   >
                     ✕
                   </button>

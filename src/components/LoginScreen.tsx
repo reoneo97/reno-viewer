@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { login } from '../api'
 import { setToken } from '../api/client'
+import { ThemeToggle } from './ThemeToggle'
 
 interface Props {
   onLogin: () => void
@@ -29,6 +30,9 @@ export function LoginScreen({ onLogin }: Props) {
 
   return (
     <div className="login-screen">
+      <div className="login-theme-toggle">
+        <ThemeToggle />
+      </div>
       <div className="login-card">
         <h1 className="login-title">Reno Viewer</h1>
         <p className="login-subtitle">Sign in to continue</p>

@@ -4,16 +4,143 @@
   padding: 0;
 }
 
+/* ── Design tokens ──────────────────────────────────────
+   Neutral-slate palette. Dark is the default (:root);
+   light mode is opted into via [data-theme="light"].
+   Anchor category colours live in types.ts and are
+   intentionally theme-independent.                         */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0f1115;
+  --bg-deep: #0b0d11;
+  --surface: #1a1d23;
+  --surface-2: #15181e;
+  --surface-3: #262b34;
+
+  --border: #262b34;
+  --border-strong: #353b47;
+
+  --text: #e8eaed;
+  --text-secondary: #b4b9c2;
+  --text-muted: #8b919c;
+  --text-faint: #5c626c;
+
+  --accent: #3b82f6;
+  --accent-hover: #2f6fd6;
+  --accent-text: #93b4f7;
+  --accent-soft: rgba(59, 130, 246, 0.14);
+
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.12);
+  --success: #22c55e;
+  --success-hover: #16a34a;
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.12);
+
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f7f8fa;
+  --bg-deep: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #eef1f5;
+
+  --border: #e3e6ea;
+  --border-strong: #d4d9e0;
+
+  --text: #1a1d23;
+  --text-secondary: #4a5159;
+  --text-muted: #6b727c;
+  --text-faint: #9aa0a9;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-text: #2563eb;
+  --accent-soft: rgba(37, 99, 235, 0.1);
+
+  --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.1);
+  --success: #16a34a;
+  --success-hover: #15803d;
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.08);
+
+  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 16px 48px rgba(15, 23, 42, 0.16);
+}
+
+/* Warm terracotta — an interiors-friendly theme: warm off-white surfaces,
+   warm charcoal text, terracotta accent, muted sage for prices. */
+:root[data-theme="warm"] {
+  color-scheme: light;
+
+  --bg: #faf6f0;
+  --bg-deep: #f1e9dd;
+  --surface: #ffffff;
+  --surface-2: #fdfaf5;
+  --surface-3: #f2e9dc;
+
+  --border: #e8ddcd;
+  --border-strong: #d8c7ad;
+
+  --text: #2b2420;
+  --text-secondary: #5c5249;
+  --text-muted: #867a6c;
+  --text-faint: #ab9c89;
+
+  --accent: #c2603f;
+  --accent-hover: #a84e30;
+  --accent-text: #b0512f;
+  --accent-soft: rgba(194, 96, 63, 0.12);
+
+  --warning: #c77d2c;
+  --warning-soft: rgba(199, 125, 44, 0.12);
+  --success: #5f8a5e;
+  --success-hover: #4c7049;
+  --danger: #c0392b;
+  --danger-soft: rgba(192, 57, 43, 0.1);
+
+  --shadow-md: 0 4px 16px rgba(80, 56, 36, 0.1);
+  --shadow-lg: 0 16px 48px rgba(80, 56, 36, 0.18);
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: var(--bg);
+  color: var(--text);
   height: 100vh;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 #root {
   height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* ── Global focus ring (a11y) ───────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Inputs convey focus via border; suppress the doubled ring. */
+.text-input:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

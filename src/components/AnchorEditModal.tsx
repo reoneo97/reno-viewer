@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { Anchor, CandidateImage } from '../types'
 import { ANCHOR_CATEGORIES } from '../types'
 import { addCandidateImage, createCandidate, deleteCandidate, removeFromAnchor, deleteAnchor, updateAnchor, updateCandidate } from '../api'
+import { useEscapeKey } from '../hooks/useEscapeKey'
+import { confirmDialog } from './ConfirmDialog'
+import { toast } from './Toast'
 
 interface Props {
   anchor: Anchor
@@ -48,6 +51,9 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
 
   const anyBusy = saving || savingIds.size > 0
 
+  // Esc: in add mode go back (with discard guard), otherwise close the modal.
+  useEscapeKey(() => { if (mode === 'add') handleBack(); else onClose() })
+
   const setAddField = (patch: Partial<AddForm>) =>
     setAddForm((prev) => ({ ...prev, ...patch }))
 
@@ -84,10 +90,18 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
     return () => window.removeEventListener('paste', handlePaste)
   }, [mode])
 
-  const handleBack = () => {
+  const handleBack = async () => {
     const isDirty = addForm.images.length > 0 || addForm.name || addForm.description ||
       addForm.width || addForm.height || addForm.depth || addForm.price || addForm.link
-    if (isDirty && !confirm('Discard this candidate? Changes will be lost.')) return
+    if (isDirty) {
+      const ok = await confirmDialog({
+        title: 'Discard candidate?',
+        message: 'This candidate hasn’t been saved. Your changes will be lost.',
+        confirmLabel: 'Discard',
+        danger: true,
+      })
+      if (!ok) return
+    }
     addForm.images.forEach((img) => URL.revokeObjectURL(img.previewUrl))
     setAddForm(emptyAddForm)
     setMode('list')
@@ -95,7 +109,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
 
   const handleSaveCandidate = async () => {
     if (addForm.images.length === 0) {
-      alert('Please add at least one image.')
+      toast.error('Please add at least one image.')
       return
     }
     if (inFlight.current) return
@@ -121,6 +135,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
       }])
       setAddForm(emptyAddForm)
       setMode('list')
+      toast.success('Candidate added')
     } finally {
       inFlight.current = false
       setSavingAdd(false)
@@ -139,10 +154,19 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
     const c = candidates.find((c) => c.id === id)
     if (!c) return
     const isShared = c.sharedWith.length > 0
-    const msg = isShared
-      ? `Remove "${c.name}" from this anchor? It will stay in: ${c.sharedWith.map((a) => a.label).join(', ')}.`
-      : `Delete "${c.name}"? This cannot be undone.`
-    if (!confirm(msg)) return
+    const ok = await confirmDialog(isShared
+      ? {
+          title: 'Remove from anchor',
+          message: `Remove "${c.name}" from this anchor? It will stay in: ${c.sharedWith.map((a) => a.label).join(', ')}.`,
+          confirmLabel: 'Remove',
+        }
+      : {
+          title: 'Delete candidate',
+          message: `Delete "${c.name}"? This cannot be undone.`,
+          confirmLabel: 'Delete',
+          danger: true,
+        })
+    if (!ok) return
     if (isShared) {
       await removeFromAnchor(anchor.id, id)
     } else {
@@ -161,6 +185,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
         width: c.width || undefined, height: c.height || undefined,
         depth: c.depth || undefined, price: c.price || undefined, link: c.link || undefined,
       })
+      toast.success('Candidate saved')
     } finally {
       setSavingIds((prev) => { const n = new Set(prev); n.delete(id); return n })
     }
@@ -201,7 +226,13 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
 
   const handleDelete = async () => {
     if (inFlight.current) return
-    if (!confirm(`Delete anchor "${anchor.label}" and all its candidates?`)) return
+    const ok = await confirmDialog({
+      title: 'Delete anchor',
+      message: `Delete anchor "${anchor.label}" and all of its candidates? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
     inFlight.current = true
     setSaving(true)
     try {
@@ -226,7 +257,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
       <div className="modal-backdrop" onClick={handleBackdrop}>
         <div className="modal">
           <div className="modal-header">
-            <button className="btn-back" onClick={handleBack} disabled={savingAdd}>← Back</button>
+            <button className="btn-back" onClick={() => { void handleBack() }} disabled={savingAdd}>← Back</button>
             <h2>Add Candidate</h2>
           </div>
 
@@ -361,7 +392,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
       <div className="modal">
         <div className="modal-header">
           <h2>Edit Anchor</h2>
-          <button className="icon-btn" onClick={onClose}>✕</button>
+          <button className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
         </div>
 
         <div className="modal-body">
@@ -409,10 +440,10 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
                     <div className="candidate-collapsed-row" onClick={() => toggleExpanded(c.id)}>
                       {c.urls[0]
                         ? <img src={c.urls[0]} alt={c.name} className="candidate-collapsed-thumb" />
-                        : <div className="candidate-collapsed-thumb" style={{ background: '#1a1a2e' }} />
+                        : <div className="candidate-collapsed-thumb" style={{ background: 'var(--surface-3)' }} />
                       }
                       <div className="candidate-collapsed-info">
-                        <span className="candidate-collapsed-name">{c.name || <em style={{ color: '#555' }}>Untitled</em>}</span>
+                        <span className="candidate-collapsed-name">{c.name || <em style={{ color: 'var(--text-faint)' }}>Untitled</em>}</span>
                         <span className="candidate-collapsed-meta">{summary}</span>
                         {c.description && <span className="candidate-collapsed-desc">{c.description}</span>}
                       </div>

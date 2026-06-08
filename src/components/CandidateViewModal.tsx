@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Anchor, CandidateImage } from '../types'
 import { anchorColor } from '../types'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface Props {
   anchor: Anchor
@@ -32,6 +33,7 @@ function ImageGallery({ urls }: { urls: string[] }) {
 
 export function CandidateViewModal({ anchor, onClose }: Props) {
   const color = anchorColor(anchor.category)
+  useEscapeKey(onClose)
 
   const handleBackdrop = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose()
@@ -48,7 +50,7 @@ export function CandidateViewModal({ anchor, onClose }: Props) {
               <span className="popover-category">{anchor.category}</span>
             )}
           </div>
-          <button className="icon-btn" onClick={onClose}>✕</button>
+          <button className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
         </div>
 
         <div className="view-modal-body">

@@ -7,6 +7,10 @@ import { FloorPlanCanvas } from './components/FloorPlanCanvas'
 import { ItemizedSidebar } from './components/ItemizedSidebar'
 import { LoginScreen } from './components/LoginScreen'
 import { ProjectSelector } from './components/ProjectSelector'
+import { ThemeToggle } from './components/ThemeToggle'
+import { ToastHost, toast } from './components/Toast'
+import { ConfirmHost } from './components/ConfirmDialog'
+import { useEscapeKey } from './hooks/useEscapeKey'
 import './App.css'
 
 type Phase = 'loading' | 'login' | 'select' | 'view'
@@ -20,6 +24,8 @@ export default function App() {
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEscapeKey(() => setShareUrl(null), shareUrl !== null)
 
   // On mount: check for existing token
   useEffect(() => {
@@ -47,7 +53,7 @@ export default function App() {
       setPhase('view')
     } catch (err) {
       console.error('Failed to load project:', err)
-      alert('Failed to load project. Check the console for details.')
+      toast.error('Failed to load project. Check the console for details.')
     }
   }
 
@@ -79,8 +85,9 @@ export default function App() {
     setIsExporting(true)
     try {
       await downloadProject(project.id, project.name)
+      toast.success('Export downloaded')
     } catch (e) {
-      alert(`Export failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Export failed: ${e instanceof Error ? e.message : e}`)
     } finally {
       setIsExporting(false)
     }
@@ -94,7 +101,7 @@ export default function App() {
       const origin = (import.meta.env.VITE_API_URL as string) || window.location.origin
       setShareUrl(`${origin}${url}`)
     } catch (e) {
-      alert(`Share failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Share failed: ${e instanceof Error ? e.message : e}`)
     } finally {
       setIsExporting(false)
     }
@@ -103,21 +110,40 @@ export default function App() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (phase === 'loading') {
-    return <div className="app"><div className="empty-state"><p>Loading…</p></div></div>
+    return (
+      <div className="app">
+        <div className="empty-state">
+          <div className="loading-state">
+            <div className="spinner spinner-lg" />
+            <p>Loading…</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (phase === 'login') {
-    return <LoginScreen onLogin={handleLogin} />
+    return (
+      <>
+        <LoginScreen onLogin={handleLogin} />
+        <ToastHost />
+        <ConfirmHost />
+      </>
+    )
   }
 
   if (phase === 'select') {
     return (
-      <ProjectSelector
-        projects={projects}
-        onSelect={handleSelectProject}
-        onProjectsChange={setProjects}
-        onLogout={handleLogout}
-      />
+      <>
+        <ProjectSelector
+          projects={projects}
+          onSelect={handleSelectProject}
+          onProjectsChange={setProjects}
+          onLogout={handleLogout}
+        />
+        <ToastHost />
+        <ConfirmHost />
+      </>
     )
   }
 
@@ -176,6 +202,7 @@ export default function App() {
             </>
           )}
 
+          <ThemeToggle />
           <button className="btn-secondary" onClick={handleLogout}>Sign out</button>
         </div>
       </header>
@@ -185,17 +212,20 @@ export default function App() {
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="modal-header">
               <h2>Share Link</h2>
-              <button className="icon-btn" onClick={() => setShareUrl(null)}>✕</button>
+              <button className="icon-btn" aria-label="Close" onClick={() => setShareUrl(null)}>✕</button>
             </div>
             <div className="modal-body">
-              <p style={{ fontSize: '0.82rem', color: '#888', marginBottom: 12 }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
                 Anyone with this link can view the floor plan — no login required.
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input className="text-input" value={shareUrl} readOnly style={{ flex: 1 }} />
                 <button
                   className="btn-primary"
-                  onClick={() => { navigator.clipboard.writeText(shareUrl) }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareUrl)
+                    toast.success('Link copied to clipboard')
+                  }}
                 >
                   Copy
                 </button>
@@ -227,6 +257,9 @@ export default function App() {
           </div>
         )}
       </main>
+
+      <ToastHost />
+      <ConfirmHost />
     </div>
   )
 }
