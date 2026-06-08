@@ -175,7 +175,7 @@ export default function App() {
               className={`btn-toggle ${isEditMode ? 'active' : ''}`}
               onClick={() => setIsEditMode((v) => !v)}
             >
-              {isEditMode ? 'Editing — click to place anchor' : 'View Mode'}
+              {isEditMode ? 'Editing — tap to place · drag pins to move' : 'View Mode'}
             </button>
           )}
 
