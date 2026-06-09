@@ -7,14 +7,14 @@ function escape(value: string): string {
   return value
 }
 
-const HEADERS = ['Anchor', 'Category', 'Notes', 'Candidate', 'Price', 'Width', 'Height', 'Depth', 'Link']
+const HEADERS = ['Anchor', 'Category', 'Notes', 'Candidate', 'Chosen', 'Price', 'Width', 'Height', 'Depth', 'Link']
 
 export function buildCsvContent(anchors: Anchor[]): string {
   const rows: string[][] = [HEADERS]
 
   for (const anchor of anchors) {
     if (anchor.candidates.length === 0) {
-      rows.push([anchor.label, anchor.category, anchor.notes, '', '', '', '', '', ''])
+      rows.push([anchor.label, anchor.category, anchor.notes, '', '', '', '', '', '', ''])
     } else {
       for (const c of anchor.candidates) {
         rows.push([
@@ -22,6 +22,7 @@ export function buildCsvContent(anchors: Anchor[]): string {
           anchor.category,
           anchor.notes,
           c.name,
+          c.chosen ? 'Yes' : '',
           c.price,
           c.width,
           c.height,

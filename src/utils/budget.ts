@@ -2,44 +2,51 @@ import type { Anchor } from '../types'
 
 export interface BudgetLine {
   category: string
-  candidateCount: number
-  total: number
+  candidateCount: number   // number of priced options seen
+  total: number            // sum of all priced options (exploratory)
+  chosenTotal: number      // sum of priced chosen candidates (committed)
 }
 
 export interface BudgetSummary {
   lines: BudgetLine[]
-  grand: number
-  unpricedAnchors: number
+  grand: number            // exploratory grand total (all options)
+  chosenGrand: number      // committed grand total (chosen only)
+  undecidedAnchors: number // anchors with candidates but none marked chosen
 }
 
+const priceOf = (p: string): number => {
+  const n = parseFloat(p)
+  return isNaN(n) ? 0 : n
+}
+
+// Budget reports two figures per category: the full "all options" total
+// (exploratory) and the "chosen" total (committed). Anchors that have options
+// but no chosen one are reported as "undecided".
 export function computeBudget(anchors: Anchor[]): BudgetSummary {
-  const map = new Map<string, { count: number; total: number }>()
-  let unpricedAnchors = 0
+  const map = new Map<string, { count: number; total: number; chosenTotal: number }>()
+  let undecidedAnchors = 0
 
   for (const anchor of anchors) {
-    const pricedCandidates = anchor.candidates.filter((c) => {
-      const n = parseFloat(c.price)
-      return !isNaN(n) && n > 0
-    })
+    const priced = anchor.candidates.filter((c) => priceOf(c.price) > 0)
+    if (priced.length === 0) continue
 
-    if (pricedCandidates.length === 0) {
-      unpricedAnchors++
-      continue
-    }
+    if (!anchor.candidates.some((c) => c.chosen)) undecidedAnchors++
 
     const key = anchor.category || 'Uncategorised'
-    const entry = map.get(key) ?? { count: 0, total: 0 }
-    for (const c of pricedCandidates) {
+    const entry = map.get(key) ?? { count: 0, total: 0, chosenTotal: 0 }
+    for (const c of priced) {
       entry.count++
-      entry.total += parseFloat(c.price)
+      entry.total += priceOf(c.price)
+      if (c.chosen) entry.chosenTotal += priceOf(c.price)
     }
     map.set(key, entry)
   }
 
   const lines: BudgetLine[] = [...map.entries()]
-    .map(([category, { count, total }]) => ({ category, candidateCount: count, total }))
+    .map(([category, v]) => ({ category, candidateCount: v.count, total: v.total, chosenTotal: v.chosenTotal }))
     .sort((a, b) => b.total - a.total)
 
   const grand = lines.reduce((sum, l) => sum + l.total, 0)
-  return { lines, grand, unpricedAnchors }
+  const chosenGrand = lines.reduce((sum, l) => sum + l.chosenTotal, 0)
+  return { lines, grand, chosenGrand, undecidedAnchors }
 }

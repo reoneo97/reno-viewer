@@ -12,7 +12,7 @@ const fmt = (n: number) =>
 
 export function BudgetModal({ anchors, onClose }: Props) {
   useEscapeKey(onClose)
-  const { lines, grand, unpricedAnchors } = computeBudget(anchors)
+  const { lines, grand, chosenGrand, undecidedAnchors } = computeBudget(anchors)
 
   const handleBackdrop = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose()
@@ -38,7 +38,8 @@ export function BudgetModal({ anchors, onClose }: Props) {
                   <tr>
                     <th className="budget-th">Category</th>
                     <th className="budget-th budget-th-right">Items</th>
-                    <th className="budget-th budget-th-right">Total</th>
+                    <th className="budget-th budget-th-right">All options</th>
+                    <th className="budget-th budget-th-right budget-th-chosen">★ Chosen</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -47,6 +48,9 @@ export function BudgetModal({ anchors, onClose }: Props) {
                       <td className="budget-td">{line.category}</td>
                       <td className="budget-td budget-td-right">{line.candidateCount}</td>
                       <td className="budget-td budget-td-right budget-amount">${fmt(line.total)}</td>
+                      <td className="budget-td budget-td-right budget-amount budget-chosen-cell">
+                        {line.chosenTotal > 0 ? `$${fmt(line.chosenTotal)}` : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -54,18 +58,19 @@ export function BudgetModal({ anchors, onClose }: Props) {
                   <tr className="budget-total-row">
                     <td className="budget-td budget-total-label" colSpan={2}>Grand total</td>
                     <td className="budget-td budget-td-right budget-total-amount">${fmt(grand)}</td>
+                    <td className="budget-td budget-td-right budget-total-amount budget-chosen-cell">${fmt(chosenGrand)}</td>
                   </tr>
                 </tfoot>
               </table>
 
-              {unpricedAnchors > 0 && (
+              {undecidedAnchors > 0 && (
                 <p className="budget-note">
-                  {unpricedAnchors} anchor{unpricedAnchors !== 1 ? 's' : ''} have no priced candidates and are excluded.
+                  {undecidedAnchors} anchor{undecidedAnchors !== 1 ? 's' : ''} have options but no chosen candidate yet.
                 </p>
               )}
 
               <p className="budget-note">
-                Totals include all candidates, not just one per anchor. Add candidate status to track decisions.
+                <strong>All options</strong> sums every priced candidate; <strong>★ Chosen</strong> is the committed cost.
               </p>
             </>
           )}
