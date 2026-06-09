@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .auth import require_auth, router as auth_router
 from .db import create_tables
+from .observability import install_logging
 from .routers import projects, anchors, candidates, snapshots
 from . import storage
 
@@ -21,6 +22,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Reno Viewer API", lifespan=lifespan)
+
+install_logging(app)
 
 app.add_middleware(
     CORSMiddleware,
