@@ -10,15 +10,15 @@ from ..models import (
     Project, ProjectCreate, ProjectListItem, ProjectRead, ProjectUpdate,
 )
 from .. import storage
-from .candidates import candidate_read
+from .candidates import anchor_candidate_reads
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _build_project_read(project: Project) -> ProjectRead:
+def _build_project_read(project: Project, session: Session) -> ProjectRead:
     anchors = []
     for anchor in project.anchors:
-        candidates = [candidate_read(c) for c in anchor.candidates]
+        candidates = anchor_candidate_reads(session, anchor)
         anchors.append(AnchorRead(**anchor.model_dump(), candidates=candidates))
     data = ProjectRead(**project.model_dump(), anchors=anchors)
     if project.floor_plan_key:
@@ -45,7 +45,7 @@ def create_project(body: ProjectCreate, session: Session = Depends(get_session))
     session.add(project)
     session.commit()
     session.refresh(project)
-    return _build_project_read(project)
+    return _build_project_read(project, session)
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
@@ -53,7 +53,7 @@ def get_project(project_id: uuid.UUID, session: Session = Depends(get_session)):
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
-    return _build_project_read(project)
+    return _build_project_read(project, session)
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
@@ -70,7 +70,7 @@ def update_project(
     session.add(project)
     session.commit()
     session.refresh(project)
-    return _build_project_read(project)
+    return _build_project_read(project, session)
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -99,4 +99,4 @@ def upload_floor_plan(
     session.add(project)
     session.commit()
     session.refresh(project)
-    return _build_project_read(project)
+    return _build_project_read(project, session)

@@ -14,12 +14,27 @@ from .. import storage
 router = APIRouter(tags=["candidates"])
 
 
-def candidate_read(c: Candidate) -> CandidateRead:
-    """Shared helper used by all routers that return CandidateRead."""
+def candidate_read(c: Candidate, chosen: bool = False) -> CandidateRead:
+    """Shared helper used by all routers that return CandidateRead.
+
+    `chosen` is contextual to the anchor the candidate is being read under, so
+    callers that build an anchor's candidate list should pass it explicitly via
+    `anchor_candidate_reads`.
+    """
     data = CandidateRead.model_validate(c)
     data.image_urls = [storage.presigned_url(p.image_key) for p in c.photos]
     data.anchors = [AnchorRef(id=a.id, label=a.label) for a in c.anchors]
+    data.chosen = chosen
     return data
+
+
+def anchor_candidate_reads(session: Session, anchor: Anchor) -> List[CandidateRead]:
+    """Build CandidateRead list for an anchor, populating per-anchor `chosen`."""
+    rows = session.exec(
+        select(AnchorCandidate).where(AnchorCandidate.anchor_id == anchor.id)
+    ).all()
+    chosen_map = {r.candidate_id: r.chosen for r in rows}
+    return [candidate_read(c, chosen_map.get(c.id, False)) for c in anchor.candidates]
 
 
 @router.post("/anchors/{anchor_id}/candidates", response_model=CandidateRead, status_code=201)
@@ -109,6 +124,73 @@ def remove_candidate_from_anchor(
         session.delete(candidate)
 
     session.commit()
+
+
+@router.get("/anchors/{anchor_id}/available-candidates", response_model=List[CandidateRead])
+def list_available_candidates(anchor_id: uuid.UUID, session: Session = Depends(get_session)):
+    """List candidates elsewhere in the same project that aren't already linked here."""
+    anchor = session.get(Anchor, anchor_id)
+    if not anchor:
+        raise HTTPException(404, "Anchor not found")
+
+    linked_ids = {c.id for c in anchor.candidates}
+    seen: set = set()
+    result: List[CandidateRead] = []
+    for sibling in anchor.project.anchors:
+        for c in sibling.candidates:
+            if c.id in linked_ids or c.id in seen:
+                continue
+            seen.add(c.id)
+            result.append(candidate_read(c))
+    return result
+
+
+@router.post("/anchors/{anchor_id}/candidates/{candidate_id}", response_model=CandidateRead, status_code=201)
+def link_candidate_to_anchor(
+    anchor_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    session: Session = Depends(get_session),
+):
+    """Link an existing candidate to another anchor (candidate reuse)."""
+    if not session.get(Anchor, anchor_id):
+        raise HTTPException(404, "Anchor not found")
+    candidate = session.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(404, "Candidate not found")
+    if not session.get(AnchorCandidate, (anchor_id, candidate_id)):
+        session.add(AnchorCandidate(anchor_id=anchor_id, candidate_id=candidate_id))
+        session.commit()
+        session.refresh(candidate)
+    return candidate_read(candidate)
+
+
+@router.patch("/anchors/{anchor_id}/candidates/{candidate_id}/chosen", response_model=CandidateRead)
+def set_candidate_chosen(
+    anchor_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    chosen: bool = Form(...),
+    session: Session = Depends(get_session),
+):
+    """Mark a candidate as the chosen one for this anchor (radio-style)."""
+    link = session.get(AnchorCandidate, (anchor_id, candidate_id))
+    if not link:
+        raise HTTPException(404, "Candidate not linked to this anchor")
+
+    if chosen:
+        # clear any other chosen candidate in this anchor first
+        others = session.exec(
+            select(AnchorCandidate).where(AnchorCandidate.anchor_id == anchor_id)
+        ).all()
+        for row in others:
+            row.chosen = (row.candidate_id == candidate_id)
+            session.add(row)
+    else:
+        link.chosen = False
+        session.add(link)
+
+    session.commit()
+    candidate = session.get(Candidate, candidate_id)
+    return candidate_read(candidate, chosen)
 
 
 @router.patch("/candidates/{candidate_id}", response_model=CandidateRead)

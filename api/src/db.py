@@ -30,6 +30,7 @@ _MIGRATIONS = [
        WHERE anchor_id IS NOT NULL
        ON CONFLICT DO NOTHING""",
     "ALTER TABLE anchors ADD COLUMN IF NOT EXISTS notes TEXT",
+    "ALTER TABLE anchor_candidates ADD COLUMN IF NOT EXISTS chosen BOOLEAN NOT NULL DEFAULT false",
 ]
 
 

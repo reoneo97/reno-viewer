@@ -6,13 +6,13 @@ from sqlmodel import Session
 from ..db import get_session
 from ..models import Anchor, AnchorCandidate, AnchorCreate, AnchorRead, AnchorUpdate, Candidate, Project
 from sqlmodel import select
-from .candidates import candidate_read
+from .candidates import anchor_candidate_reads
 
 router = APIRouter(tags=["anchors"])
 
 
-def _build_anchor_read(anchor: Anchor) -> AnchorRead:
-    candidates = [candidate_read(c) for c in anchor.candidates]
+def _build_anchor_read(session: Session, anchor: Anchor) -> AnchorRead:
+    candidates = anchor_candidate_reads(session, anchor)
     return AnchorRead(**anchor.model_dump(), candidates=candidates)
 
 
@@ -28,7 +28,7 @@ def create_anchor(
     session.add(anchor)
     session.commit()
     session.refresh(anchor)
-    return _build_anchor_read(anchor)
+    return _build_anchor_read(session, anchor)
 
 
 @router.patch("/anchors/{anchor_id}", response_model=AnchorRead)
@@ -45,7 +45,7 @@ def update_anchor(
     session.add(anchor)
     session.commit()
     session.refresh(anchor)
-    return _build_anchor_read(anchor)
+    return _build_anchor_read(session, anchor)
 
 
 @router.post("/anchors/{anchor_id}/duplicate", response_model=AnchorRead, status_code=201)
@@ -73,7 +73,7 @@ def duplicate_anchor(
 
     session.commit()
     session.refresh(new_anchor)
-    return _build_anchor_read(new_anchor)
+    return _build_anchor_read(session, new_anchor)
 
 
 @router.delete("/anchors/{anchor_id}", status_code=204)

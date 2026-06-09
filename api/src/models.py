@@ -49,6 +49,7 @@ class AnchorCandidate(SQLModel, table=True):
             primary_key=True,
         ),
     )
+    chosen: bool = False
 
 
 class Anchor(SQLModel, table=True):
@@ -187,6 +188,7 @@ class CandidateRead(SQLModel):
     link: Optional[str] = None
     created_at: datetime
     anchors: List[AnchorRef] = []
+    chosen: bool = False  # whether this candidate is the chosen one for the anchor it was read under
 
 
 class AnchorRead(SQLModel):
