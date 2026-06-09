@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { Anchor, CandidateImage } from '../types'
-import { anchorColor } from '../types'
+import { anchorColor, formatDims } from '../types'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface Props {
   anchor: Anchor
   onClose: () => void
+  onEdit?: () => void
 }
 
 function ImageGallery({ urls }: { urls: string[] }) {
@@ -31,7 +32,7 @@ function ImageGallery({ urls }: { urls: string[] }) {
   )
 }
 
-export function CandidateViewModal({ anchor, onClose }: Props) {
+export function CandidateViewModal({ anchor, onClose, onEdit }: Props) {
   const color = anchorColor(anchor.category)
   useEscapeKey(onClose)
 
@@ -50,6 +51,11 @@ export function CandidateViewModal({ anchor, onClose }: Props) {
               <span className="popover-category">{anchor.category}</span>
             )}
           </div>
+          {onEdit && (
+            <button className="btn-secondary" style={{ fontSize: '0.78rem', padding: '5px 12px' }} onClick={onEdit}>
+              Edit
+            </button>
+          )}
           <button className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
         </div>
 
@@ -59,11 +65,12 @@ export function CandidateViewModal({ anchor, onClose }: Props) {
           ) : (
             <div className="view-candidate-grid">
               {anchor.candidates.map((c: CandidateImage) => {
-                const dims = [c.width, c.height, c.depth].filter(Boolean).join(' × ')
+                const dims = formatDims(c.width, c.height, c.depth)
                 return (
-                  <div key={c.id} className="view-candidate-card">
+                  <div key={c.id} className={`view-candidate-card ${c.chosen ? 'chosen' : ''}`}>
                     <div className="view-candidate-img-wrap">
                       <ImageGallery urls={c.urls} />
+                      {c.chosen && <span className="view-candidate-chosen-badge" title="Chosen">★ Chosen</span>}
                     </div>
                     <div className="view-candidate-info">
                       <p className="view-candidate-name">{c.name}</p>

@@ -15,6 +15,7 @@ const baseCandidate = {
   price: '1200', link: 'https://example.com',
   created_at: '2024-01-01T00:00:00Z',
   anchors: [],
+  chosen: false,
 }
 
 describe('mapApiAnchor', () => {

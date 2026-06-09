@@ -44,5 +44,5 @@ export const http = {
   post:   (path: string, body: unknown)       => request('POST',   path, body),
   patch:  (path: string, body: unknown)       => request('PATCH',  path, body),
   delete: (path: string)                      => request('DELETE', path),
-  upload: (path: string, form: FormData)      => request('POST',   path, form, true),
+  upload: (path: string, form: FormData, method = 'POST') => request(method, path, form, true),
 }

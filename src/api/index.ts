@@ -119,6 +119,26 @@ export function removeFromAnchor(anchorId: string, candidateId: string): Promise
   return http.delete(`/anchors/${anchorId}/candidates/${candidateId}`)
 }
 
+// ── Candidate reuse + chosen ────────────────────────────────────────────────────
+
+export function listAvailableCandidates(anchorId: string): Promise<ApiCandidate[]> {
+  return http.get(`/anchors/${anchorId}/available-candidates`)
+}
+
+export function linkCandidate(anchorId: string, candidateId: string): Promise<ApiCandidate> {
+  return http.post(`/anchors/${anchorId}/candidates/${candidateId}`, {})
+}
+
+export function setCandidateChosen(
+  anchorId: string,
+  candidateId: string,
+  chosen: boolean,
+): Promise<ApiCandidate> {
+  const form = new FormData()
+  form.append('chosen', String(chosen))
+  return http.upload(`/anchors/${anchorId}/candidates/${candidateId}/chosen`, form, 'PATCH')
+}
+
 export function deleteCandidate(candidateId: string): Promise<null> {
   return http.delete(`/candidates/${candidateId}`)
 }
