@@ -218,7 +218,6 @@ export default function App() {
             </>
           )}
 
-          <ThemeToggle />
           <button className="btn-secondary" onClick={handleLogout}>Sign out</button>
         </div>
       </header>
@@ -270,6 +269,7 @@ export default function App() {
               onRefresh={refreshProject}
             />
             {showSidebar && <ItemizedSidebar anchors={anchors} />}
+            <ThemeToggle />
           </div>
         )}
       </main>

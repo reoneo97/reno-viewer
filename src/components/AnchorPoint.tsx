@@ -28,6 +28,7 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
   const [dragPos, setDragPos] = useState<Point | null>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const drag = useRef<{ pointerId: number; startX: number; startY: number; moved: boolean } | null>(null)
+  const lastTapAt = useRef(0)
   const color = anchorColor(anchor.category)
 
   // Once a move is persisted and the refreshed anchor arrives, drop the
@@ -76,8 +77,9 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* already released */ }
 
     if (!st.moved) {
-      // A tap in edit mode opens the edit modal.
-      setShowEditModal(true)
+      const now = Date.now()
+      if (now - lastTapAt.current < 350) setShowEditModal(true)
+      lastTapAt.current = now
       return
     }
     if (!dragPos) return
@@ -125,6 +127,7 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
         <CandidateViewModal
           anchor={anchor}
           onClose={() => setShowViewModal(false)}
+          onEdit={() => { setShowViewModal(false); setShowEditModal(true) }}
         />
       )}
 

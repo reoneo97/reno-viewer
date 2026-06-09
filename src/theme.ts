@@ -16,17 +16,13 @@ function isTheme(v: unknown): v is Theme {
   return v === 'light' || v === 'dark' || v === 'warm'
 }
 
-function systemPrefersDark(): boolean {
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
-}
-
 export function getStoredTheme(): Theme | null {
   const v = localStorage.getItem(STORAGE_KEY)
   return isTheme(v) ? v : null
 }
 
 export function resolveInitialTheme(): Theme {
-  return getStoredTheme() ?? (systemPrefersDark() ? 'dark' : 'light')
+  return getStoredTheme() ?? 'warm'
 }
 
 export function nextTheme(theme: Theme): Theme {

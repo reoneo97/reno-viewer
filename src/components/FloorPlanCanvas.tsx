@@ -140,6 +140,9 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
   }
 
   const usedCategories = [...new Set(anchors.map((a) => a.category).filter(Boolean))]
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
+  const toggleCategory = (cat: string) =>
+    setHiddenCategories((prev) => { const n = new Set(prev); n.has(cat) ? n.delete(cat) : n.add(cat); return n })
 
   return (
     <div
@@ -159,7 +162,7 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
       >
         <img ref={imgRef} src={floorPlanUrl} alt="Floor plan" className="floor-plan-img" draggable={false} />
 
-        {anchors.map((anchor) => (
+        {anchors.filter((a) => !hiddenCategories.has(a.category)).map((anchor) => (
           <AnchorPoint
             key={anchor.id}
             anchor={anchor}
@@ -187,12 +190,23 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
 
       {usedCategories.length > 0 && (
         <div className="legend">
-          {usedCategories.map((cat) => (
-            <div key={cat} className="legend-item">
-              <span className="legend-dot" style={{ background: anchorColor(cat) }} />
-              <span className="legend-label">{cat}</span>
-            </div>
-          ))}
+          {usedCategories.map((cat) => {
+            const hidden = hiddenCategories.has(cat)
+            return (
+              <div
+                key={cat}
+                className={`legend-item legend-item-toggle ${hidden ? 'legend-item-hidden' : ''}`}
+                onClick={() => toggleCategory(cat)}
+                title={hidden ? `Show ${cat}` : `Hide ${cat}`}
+              >
+                <span
+                  className="legend-dot"
+                  style={{ background: hidden ? '#444' : anchorColor(cat) }}
+                />
+                <span className="legend-label">{cat}</span>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
