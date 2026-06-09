@@ -4,10 +4,10 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, Response
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import Candidate, Project
+from ..models import AnchorCandidate, Candidate, Project
 from .. import storage
 
 router = APIRouter(tags=["snapshots"])
@@ -25,7 +25,14 @@ def _key_to_data_url(key: str) -> str:
     return f"data:{mime};base64,{base64.b64encode(data).decode()}"
 
 
-def _project_to_snapshot_data(project: Project) -> dict:
+def _project_to_snapshot_data(project: Project, session: Session) -> dict:
+    chosen_rows = session.exec(
+        select(AnchorCandidate).where(
+            AnchorCandidate.anchor_id.in_([a.id for a in project.anchors])  # type: ignore[attr-defined]
+        )
+    ).all() if project.anchors else []
+    chosen_set = {(r.anchor_id, r.candidate_id) for r in chosen_rows if r.chosen}
+
     return {
         "floorPlan": _key_to_data_url(project.floor_plan_key) if project.floor_plan_key else "",
         "anchors": [
@@ -46,6 +53,7 @@ def _project_to_snapshot_data(project: Project) -> dict:
                         "depth": c.depth or "",
                         "price": c.price or "",
                         "link": c.link or "",
+                        "chosen": (a.id, c.id) in chosen_set,
                     }
                     for c in a.candidates
                 ],
@@ -183,6 +191,7 @@ def _build_html(data: dict) -> str:
       'Furniture':       '#4a90d9',
       'Lights and Fans': '#f1c40f',
       'Bathroom':        '#1abc9c',
+      'Kitchen':         '#8e44ad',
       'Appliances':      '#e67e22',
       'Others':          '#95a5a6'
     }};
@@ -281,7 +290,8 @@ def _build_html(data: dict) -> str:
 
           var nm = document.createElement('div');
           nm.className = 'sidebar-candidate-name';
-          nm.textContent = c.name;
+          nm.textContent = (c.chosen ? '★ ' : '') + c.name;
+          if (c.chosen) nm.style.color = '#f1c40f';
           info.appendChild(nm);
 
           if (c.description) {{
@@ -291,7 +301,7 @@ def _build_html(data: dict) -> str:
             info.appendChild(desc);
           }}
 
-          var dimsVal = [c.width, c.height, c.depth].filter(Boolean).join(' × ') || '—';
+          var dimsVal = [c.width ? 'W ' + c.width : '', c.height ? 'H ' + c.height : '', c.depth ? 'D ' + c.depth : ''].filter(Boolean).join(' × ') || '—';
           var d = document.createElement('div');
           d.className = 'sidebar-candidate-dims';
           d.textContent = dimsVal;
@@ -398,10 +408,17 @@ def _build_html(data: dict) -> str:
         anchor.candidates.forEach(function(c) {{
           var card = document.createElement('div');
           card.className = 'candidate-card';
+          if (c.chosen) card.style.outline = '2px solid #f1c40f';
           if (c.urls && c.urls[0]) {{
             var img = document.createElement('img');
             img.src = c.urls[0]; img.alt = c.name;
             card.appendChild(img);
+          }}
+          if (c.chosen) {{
+            var star = document.createElement('span');
+            star.textContent = '★';
+            star.style.cssText = 'position:absolute;top:4px;left:4px;color:#f1c40f;font-size:0.9rem;text-shadow:0 1px 3px rgba(0,0,0,0.8);z-index:2;';
+            card.appendChild(star);
           }}
           var overlay = document.createElement('div');
           overlay.className = 'candidate-overlay';
@@ -409,7 +426,7 @@ def _build_html(data: dict) -> str:
           nm.className = 'candidate-name';
           nm.textContent = c.name;
           overlay.appendChild(nm);
-          var dims = [c.width, c.height, c.depth].filter(Boolean).join(' × ');
+          var dims = [c.width ? 'W ' + c.width : '', c.height ? 'H ' + c.height : '', c.depth ? 'D ' + c.depth : ''].filter(Boolean).join(' × ');
           if (dims) {{
             var meta = document.createElement('p');
             meta.className = 'candidate-meta';
@@ -455,7 +472,7 @@ def create_snapshot(project_id: uuid.UUID, session: Session = Depends(get_sessio
     if not project:
         raise HTTPException(404, "Project not found")
 
-    data = _project_to_snapshot_data(project)
+    data = _project_to_snapshot_data(project, session)
     html = _build_html(data)
 
     storage.upload_bytes(html.encode(), f"snapshots/{project_id}.html", "text/html")
@@ -470,7 +487,7 @@ def download_snapshot(project_id: uuid.UUID, session: Session = Depends(get_sess
     if not project:
         raise HTTPException(404, "Project not found")
 
-    data = _project_to_snapshot_data(project)
+    data = _project_to_snapshot_data(project, session)
     html = _build_html(data)
     filename = f"{project.name.replace(' ', '_')}.html"
 
