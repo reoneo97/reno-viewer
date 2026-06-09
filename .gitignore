@@ -7,3 +7,10 @@ __pycache__/
 .DS_Store
 *.egg-info/
 .pytest_cache/
+
+# SSH deploy keys — never commit
+digital_ocean
+digital_ocean.pub
+*.pem
+id_ed25519*
+id_rsa*
