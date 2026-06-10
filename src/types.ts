@@ -6,21 +6,38 @@ export const ANCHOR_CATEGORIES = [
   'Others',
 ]
 
+// Interior-design palette: terracotta, brass, sage, slate. Muted enough to
+// sit comfortably on a floor plan, distinct enough to scan at a glance.
 export const CATEGORY_COLORS: Record<string, string> = {
-  'Furniture':      '#4a90d9',
-  'Lights and Fans':'#f1c40f',
-  'Bathroom':       '#1abc9c',
-  'Appliances':     '#e67e22',
-  'Others':         '#95a5a6',
+  'Furniture':      '#b5654a',
+  'Lights and Fans':'#c99a3c',
+  'Bathroom':       '#5f8d83',
+  'Appliances':     '#6e82a3',
+  'Others':         '#8d8678',
 }
 
-export const DEFAULT_ANCHOR_COLOR = '#7f8c8d'
+export const DEFAULT_ANCHOR_COLOR = '#7d7568'
 
 export function anchorColor(category: string): string {
   return CATEGORY_COLORS[category] ?? DEFAULT_ANCHOR_COLOR
 }
 
 // ── Frontend component types ──────────────────────────────────────────────────
+
+// Decision state for a candidate. Empty string = no decision yet.
+// NOTE: persisting status requires the API to accept/return a `status`
+// field on candidates; until then it is kept optimistically in client state.
+export type CandidateStatus = '' | 'shortlisted' | 'chosen' | 'rejected'
+
+export const STATUS_LABELS: Record<Exclude<CandidateStatus, ''>, string> = {
+  shortlisted: 'Shortlisted',
+  chosen: 'Chosen',
+  rejected: 'Rejected',
+}
+
+export function isCandidateStatus(v: unknown): v is CandidateStatus {
+  return v === '' || v === 'shortlisted' || v === 'chosen' || v === 'rejected'
+}
 
 export interface AnchorRef {
   id: string
@@ -37,6 +54,7 @@ export interface CandidateImage {
   depth: string
   price: string
   link: string
+  status: CandidateStatus
   sharedWith: AnchorRef[]  // other anchors this candidate also belongs to
 }
 
@@ -62,6 +80,7 @@ export interface ApiCandidate {
   depth: string | null
   price: string | null
   link: string | null
+  status?: string | null
   created_at: string
   anchors: AnchorRef[]
 }
@@ -106,6 +125,7 @@ export function mapApiAnchor(a: ApiAnchor): Anchor {
       depth: c.depth ?? '',
       price: c.price ?? '',
       link: c.link ?? '',
+      status: isCandidateStatus(c.status) ? c.status : '',
       sharedWith: (c.anchors ?? []).filter((ref) => ref.id !== a.id),
     })),
   }

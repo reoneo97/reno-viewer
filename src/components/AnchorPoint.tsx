@@ -16,12 +16,18 @@ interface Props {
   // Maps a screen coordinate to a percentage of the floor plan. Provided by
   // FloorPlanCanvas; absent in contexts that don't support dragging.
   clientToPercent?: (clientX: number, clientY: number) => Point | null
+  // Counter-scale factor (1/canvas zoom) so pins keep a constant screen size.
+  pinScale?: number
+  // Pulse this pin (set when the user locates it from the sidebar).
+  highlighted?: boolean
+  // Notify the app that this anchor was opened (syncs the sidebar).
+  onSelect?: (anchorId: string) => void
 }
 
 // Movement (px) before a press is treated as a drag rather than a tap.
 const DRAG_THRESHOLD = 4
 
-export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: Props) {
+export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent, pinScale = 1, highlighted = false, onSelect }: Props) {
   const [hovered, setHovered] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -50,6 +56,7 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
     e.stopPropagation()
     if (isEditMode) return
     setHovered(false)
+    onSelect?.(anchor.id)
     setShowViewModal(true)
   }
 
@@ -92,6 +99,7 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
   }
 
   const hasCandidates = anchor.candidates.length > 0
+  const hasChosen = anchor.candidates.some((c) => c.status === 'chosen')
   const pos = dragPos ?? { x: anchor.x, y: anchor.y }
   const isDragging = dragPos !== null
 
@@ -99,7 +107,12 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
     <>
       <div
         className="anchor-wrapper"
-        style={{ left: `${pos.x}%`, top: `${pos.y}%`, touchAction: 'none' }}
+        style={{
+          left: `${pos.x}%`,
+          top: `${pos.y}%`,
+          transform: `translate(-50%, -50%) scale(${pinScale})`,
+          touchAction: 'none',
+        }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
@@ -109,12 +122,14 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
         onPointerCancel={handlePointerUp}
       >
         <div
-          className={`anchor-pin ${isEditMode ? 'edit-mode' : ''} ${isDragging ? 'dragging' : ''}`}
+          className={`anchor-pin ${isEditMode ? 'edit-mode' : ''} ${isDragging ? 'dragging' : ''} ${hasChosen ? 'has-chosen' : ''} ${highlighted ? 'highlighted' : ''}`}
           style={{ background: color }}
         >
           <span className="anchor-label">{anchor.label}</span>
           {hasCandidates && (
-            <span className="candidate-badge">{anchor.candidates.length}</span>
+            <span className={`candidate-badge ${hasChosen ? 'badge-chosen' : ''}`}>
+              {hasChosen ? '✓' : anchor.candidates.length}
+            </span>
           )}
         </div>
 
@@ -124,6 +139,7 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
       {showViewModal && (
         <CandidateViewModal
           anchor={anchor}
+          onRefresh={onRefresh}
           onClose={() => setShowViewModal(false)}
         />
       )}
@@ -132,7 +148,6 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
         <AnchorEditModal
           anchor={anchor}
           onSave={() => { onRefresh(); setShowEditModal(false) }}
-          onClose={() => setShowEditModal(false)}
         />
       )}
     </>

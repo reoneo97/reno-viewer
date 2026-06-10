@@ -12,12 +12,15 @@ export interface BudgetSummary {
   unpricedAnchors: number
 }
 
-export function computeBudget(anchors: Anchor[]): BudgetSummary {
+// chosenOnly: restrict the summary to candidates marked "chosen" — the
+// decided budget rather than the everything-we're-considering budget.
+export function computeBudget(anchors: Anchor[], chosenOnly = false): BudgetSummary {
   const map = new Map<string, { count: number; total: number }>()
   let unpricedAnchors = 0
 
   for (const anchor of anchors) {
     const pricedCandidates = anchor.candidates.filter((c) => {
+      if (chosenOnly && c.status !== 'chosen') return false
       const n = parseFloat(c.price)
       return !isNaN(n) && n > 0
     })

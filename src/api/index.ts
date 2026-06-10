@@ -110,7 +110,7 @@ export function deleteCandidateImage(photoId: string): Promise<null> {
 
 export function updateCandidate(
   candidateId: string,
-  data: { name?: string; description?: string; width?: string; height?: string; depth?: string; price?: string; link?: string },
+  data: { name?: string; description?: string; width?: string; height?: string; depth?: string; price?: string; link?: string; status?: string },
 ): Promise<ApiCandidate> {
   return http.patch(`/candidates/${candidateId}`, data)
 }
