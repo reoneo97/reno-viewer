@@ -8,6 +8,7 @@ import { ItemizedSidebar } from './components/ItemizedSidebar'
 import { LoginScreen } from './components/LoginScreen'
 import { ProjectSelector } from './components/ProjectSelector'
 import { ThemeToggle } from './components/ThemeToggle'
+import { ExportMenu } from './components/ExportMenu'
 import { ToastHost, toast } from './components/Toast'
 import { ConfirmHost } from './components/ConfirmDialog'
 import { BudgetModal } from './components/BudgetModal'
@@ -26,6 +27,7 @@ export default function App() {
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
   const [showBudget, setShowBudget] = useState(false)
+  const [dragOverPlan, setDragOverPlan] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEscapeKey(() => setShareUrl(null), shareUrl !== null)
@@ -76,11 +78,25 @@ export default function App() {
     setProject((prev) => prev ? { ...prev, anchors: [...prev.anchors, anchor] } : prev)
   }
 
+  const uploadPlanFile = async (file: File) => {
+    if (!project) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file for the floor plan.')
+      return
+    }
+    try {
+      const updated = await uploadFloorPlan(project.id, file)
+      setProject(updated)
+      toast.success('Floor plan updated')
+    } catch (e) {
+      toast.error(`Upload failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
   const handleFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !project) return
-    const updated = await uploadFloorPlan(project.id, file)
-    setProject(updated)
+    if (file) await uploadPlanFile(file)
+    e.target.value = ''
   }
 
   const handleExport = async () => {
@@ -177,8 +193,9 @@ export default function App() {
             <button
               className={`btn-toggle ${isEditMode ? 'active' : ''}`}
               onClick={() => setIsEditMode((v) => !v)}
+              title={isEditMode ? 'Finish editing' : 'Place and move anchors'}
             >
-              {isEditMode ? 'Editing — tap to place · drag pins to move' : 'View Mode'}
+              {isEditMode ? '✓ Done' : '✎ Edit Plan'}
             </button>
           )}
 
@@ -190,33 +207,30 @@ export default function App() {
 
           {project?.floor_plan_url && (
             <>
+              <span className="toolbar-divider" aria-hidden />
               <button
                 className={`btn-toggle ${showSidebar ? 'active' : ''}`}
                 onClick={() => setShowSidebar((v) => !v)}
+                title="Toggle item list"
               >
-                ☰ List
+                ☰ Items
               </button>
               {anchors.length > 0 && (
                 <button className="btn-secondary" onClick={() => setShowBudget(true)}>
                   Budget
                 </button>
               )}
-              <button className="btn-secondary" onClick={handleShare} disabled={isExporting}>
-                {isExporting ? 'Working…' : 'Share'}
-              </button>
-              <button className="btn-secondary" onClick={handleExport} disabled={isExporting}>
-                Export
-              </button>
-              {anchors.length > 0 && (
-                <button
-                  className="btn-secondary"
-                  onClick={() => { downloadCsv(anchors, project!.name); toast.success('CSV downloaded') }}
-                >
-                  CSV
-                </button>
-              )}
+              <ExportMenu
+                busy={isExporting}
+                hasAnchors={anchors.length > 0}
+                onShare={handleShare}
+                onExport={handleExport}
+                onCsv={() => { downloadCsv(anchors, project!.name); toast.success('CSV downloaded') }}
+              />
             </>
           )}
+
+          <span className="toolbar-divider" aria-hidden />
 
           <ThemeToggle />
           <button className="btn-secondary" onClick={handleLogout}>Sign out</button>
@@ -253,11 +267,22 @@ export default function App() {
 
       <main className="main-area">
         {!project?.floor_plan_url ? (
-          <div className="empty-state">
+          <div
+            className={`empty-state empty-state-drop ${dragOverPlan ? 'drag-over' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setDragOverPlan(true) }}
+            onDragLeave={() => setDragOverPlan(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragOverPlan(false)
+              const file = e.dataTransfer.files?.[0]
+              if (file) void uploadPlanFile(file)
+            }}
+          >
             <div className="empty-icon">🏠</div>
-            <p>Load a floor plan to get started</p>
+            <p>Start by adding your floor plan</p>
+            <p className="empty-hint">Drag an image here, or</p>
             <button className="btn-primary" onClick={() => fileInputRef.current?.click()}>
-              Load Floor Plan
+              Choose Floor Plan
             </button>
           </div>
         ) : (

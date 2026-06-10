@@ -16,12 +16,14 @@ interface Props {
   // Maps a screen coordinate to a percentage of the floor plan. Provided by
   // FloorPlanCanvas; absent in contexts that don't support dragging.
   clientToPercent?: (clientX: number, clientY: number) => Point | null
+  // Counter-scale factor (1/canvas zoom) so pins keep a constant screen size.
+  pinScale?: number
 }
 
 // Movement (px) before a press is treated as a drag rather than a tap.
 const DRAG_THRESHOLD = 4
 
-export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: Props) {
+export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent, pinScale = 1 }: Props) {
   const [hovered, setHovered] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -99,7 +101,12 @@ export function AnchorPoint({ anchor, isEditMode, onRefresh, clientToPercent }: 
     <>
       <div
         className="anchor-wrapper"
-        style={{ left: `${pos.x}%`, top: `${pos.y}%`, touchAction: 'none' }}
+        style={{
+          left: `${pos.x}%`,
+          top: `${pos.y}%`,
+          transform: `translate(-50%, -50%) scale(${pinScale})`,
+          touchAction: 'none',
+        }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}

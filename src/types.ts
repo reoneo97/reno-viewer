@@ -6,15 +6,17 @@ export const ANCHOR_CATEGORIES = [
   'Others',
 ]
 
+// Interior-design palette: terracotta, brass, sage, slate. Muted enough to
+// sit comfortably on a floor plan, distinct enough to scan at a glance.
 export const CATEGORY_COLORS: Record<string, string> = {
-  'Furniture':      '#4a90d9',
-  'Lights and Fans':'#f1c40f',
-  'Bathroom':       '#1abc9c',
-  'Appliances':     '#e67e22',
-  'Others':         '#95a5a6',
+  'Furniture':      '#b5654a',
+  'Lights and Fans':'#c99a3c',
+  'Bathroom':       '#5f8d83',
+  'Appliances':     '#6e82a3',
+  'Others':         '#8d8678',
 }
 
-export const DEFAULT_ANCHOR_COLOR = '#7f8c8d'
+export const DEFAULT_ANCHOR_COLOR = '#7d7568'
 
 export function anchorColor(category: string): string {
   return CATEGORY_COLORS[category] ?? DEFAULT_ANCHOR_COLOR

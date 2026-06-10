@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { Anchor } from '../types'
 import { anchorColor } from '../types'
 import { AnchorPoint } from './AnchorPoint'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface Point { x: number; y: number }
 
@@ -13,9 +14,14 @@ interface Props {
   onRefresh: () => void
 }
 
-const clampScale = (s: number) => Math.min(Math.max(s, 0.3), 5)
+const MIN_SCALE = 0.3
+const MAX_SCALE = 5
+const clampScale = (s: number) => Math.min(Math.max(s, MIN_SCALE), MAX_SCALE)
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
 const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
+
+// Legend key for anchors without a category.
+const UNCATEGORISED = ''
 
 export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor, onRefresh }: Props) {
   const imgRef = useRef<HTMLImageElement>(null)
@@ -33,12 +39,15 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
   const [isPanning, setIsPanning] = useState(false)
   const [pending, setPending] = useState<Point | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
   const lastConfirmAt = useRef(0)
 
   // Active pointers, keyed by pointerId, for pan + pinch-zoom.
   const pointers = useRef<Map<number, Point>>(new Map())
   const panStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 })
   const pinchStart = useRef({ dist: 0, scale: 1, mid: { x: 0, y: 0 }, ox: 0, oy: 0 })
+
+  useEscapeKey(() => setPending(null), pending !== null)
 
   // Convert a screen coordinate to a percentage of the floor-plan image.
   const clientToPercent = (clientX: number, clientY: number): Point | null => {
@@ -80,6 +89,9 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
     const delta = e.deltaY > 0 ? 0.9 : 1.1
     setScale(clampScale(scaleRef.current * delta))
   }
+
+  const zoomBy = (factor: number) => setScale(clampScale(scaleRef.current * factor))
+  const resetView = () => { setScale(1); setOffset({ x: 0, y: 0 }) }
 
   // ── Pointer-based pan & pinch-zoom (mouse + touch) ──────────────────────────
   const beginPan = (clientX: number, clientY: number) => {
@@ -139,7 +151,21 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
     }
   }
 
-  const usedCategories = [...new Set(anchors.map((a) => a.category).filter(Boolean))]
+  const toggleCategory = (cat: string) =>
+    setHiddenCategories((prev) => {
+      const next = new Set(prev)
+      next.has(cat) ? next.delete(cat) : next.add(cat)
+      return next
+    })
+
+  const usedCategories = [...new Set(anchors.map((a) => a.category))]
+    .sort((a, b) => (a === UNCATEGORISED ? 1 : b === UNCATEGORISED ? -1 : a.localeCompare(b)))
+  const visibleAnchors = anchors.filter((a) => !hiddenCategories.has(a.category))
+
+  // Pins live inside the scaled wrapper; counter-scale them so they keep a
+  // constant on-screen size at any zoom level, like map markers. Capped so
+  // pins don't dwarf the plan when zoomed far out.
+  const pinScale = Math.min(1 / scale, 2)
 
   return (
     <div
@@ -159,20 +185,25 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
       >
         <img ref={imgRef} src={floorPlanUrl} alt="Floor plan" className="floor-plan-img" draggable={false} />
 
-        {anchors.map((anchor) => (
+        {visibleAnchors.map((anchor) => (
           <AnchorPoint
             key={anchor.id}
             anchor={anchor}
             isEditMode={isEditMode}
             onRefresh={onRefresh}
             clientToPercent={clientToPercent}
+            pinScale={pinScale}
           />
         ))}
 
         {pending && (
           <div
             className="anchor-wrapper pending-anchor"
-            style={{ left: `${pending.x}%`, top: `${pending.y}%` }}
+            style={{
+              left: `${pending.x}%`,
+              top: `${pending.y}%`,
+              transform: `translate(-50%, -50%) scale(${pinScale})`,
+            }}
           >
             <div className="anchor-pin pending" />
             <div className="pending-confirm">
@@ -185,16 +216,40 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
         )}
       </div>
 
-      {usedCategories.length > 0 && (
-        <div className="legend">
-          {usedCategories.map((cat) => (
-            <div key={cat} className="legend-item">
-              <span className="legend-dot" style={{ background: anchorColor(cat) }} />
-              <span className="legend-label">{cat}</span>
-            </div>
-          ))}
+      {isEditMode && (
+        <div className="edit-hint" role="status">
+          <span className="edit-hint-dot" />
+          Tap the plan to place a pin · drag pins to move · click a pin to edit
         </div>
       )}
+
+      {usedCategories.length > 0 && (
+        <div className="legend" onPointerDown={(e) => e.stopPropagation()}>
+          <div className="legend-title">Categories</div>
+          {usedCategories.map((cat) => {
+            const hidden = hiddenCategories.has(cat)
+            return (
+              <button
+                key={cat || '__none__'}
+                className={`legend-item ${hidden ? 'legend-item-off' : ''}`}
+                onClick={() => toggleCategory(cat)}
+                title={hidden ? 'Show category' : 'Hide category'}
+              >
+                <span className="legend-dot" style={{ background: anchorColor(cat) }} />
+                <span className="legend-label">{cat || 'Uncategorised'}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="zoom-controls" onPointerDown={(e) => e.stopPropagation()}>
+        <button className="zoom-btn" onClick={() => zoomBy(0.8)} title="Zoom out" aria-label="Zoom out">−</button>
+        <button className="zoom-readout" onClick={resetView} title="Reset view">
+          {Math.round(scale * 100)}%
+        </button>
+        <button className="zoom-btn" onClick={() => zoomBy(1.25)} title="Zoom in" aria-label="Zoom in">+</button>
+      </div>
     </div>
   )
 }

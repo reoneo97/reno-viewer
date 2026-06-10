@@ -23,11 +23,12 @@
 }
 
 .login-title {
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 600;
   color: var(--text);
   margin-bottom: 6px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
 }
 
 .login-subtitle {
@@ -56,11 +57,12 @@
 .selector-body { flex: 1; overflow-y: auto; padding: 32px 40px; }
 
 .selector-heading {
-  font-size: 1.2rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 600;
   color: var(--text);
   margin-bottom: 24px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
 }
 
 .selector-empty { color: var(--text-muted); font-size: 0.9rem; }
@@ -123,10 +125,11 @@
   background: none;
   border: none;
   color: var(--accent-text);
-  font-weight: 700;
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.1rem;
   cursor: pointer;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
   padding: 0;
   transition: color 0.15s;
 }
@@ -160,10 +163,18 @@
 }
 
 .app-title {
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.2rem;
   color: var(--accent-text);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  flex-shrink: 0;
 }
 
 .toolbar-actions {
@@ -290,7 +301,7 @@
   justify-content: center;
 }
 
-/* ── Legend ─────────────────────────────────────────── */
+/* ── Legend (click to filter categories) ────────────── */
 .legend {
   position: absolute;
   bottom: 20px;
@@ -298,19 +309,44 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 10px 14px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  pointer-events: none;
+  gap: 2px;
   box-shadow: var(--shadow-md);
   z-index: 30;
+}
+
+.legend-title {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  padding: 2px 6px 4px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
   gap: 8px;
+  background: none;
+  border: none;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.legend-item:hover {
+  background: var(--surface-3);
+}
+
+.legend-item-off .legend-dot { opacity: 0.25; }
+.legend-item-off .legend-label {
+  color: var(--text-faint);
+  text-decoration: line-through;
 }
 
 .legend-dot {
@@ -319,6 +355,7 @@
   border-radius: 50%;
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: opacity 0.12s;
 }
 
 .legend-label {
@@ -897,8 +934,10 @@
 }
 
 .view-modal-title h2 {
-  font-size: 1rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .view-modal-dot {
@@ -1186,8 +1225,10 @@
 }
 
 .modal-header h2 {
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .modal-body {
@@ -1639,8 +1680,9 @@ button:disabled {
 }
 
 .confirm-dialog-title {
-  font-size: 1rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
   color: var(--text);
   margin-bottom: 8px;
 }
@@ -1733,6 +1775,220 @@ button:disabled {
   color: var(--text-faint);
   line-height: 1.5;
   margin-top: 8px;
+}
+
+/* ── Zoom controls ──────────────────────────────────── */
+.zoom-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  z-index: 30;
+}
+
+.zoom-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  width: 34px;
+  height: 32px;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.zoom-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.zoom-readout {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.zoom-readout:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+/* ── Edit-mode hint banner ──────────────────────────── */
+.edit-hint {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--warning);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  padding: 7px 14px;
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 30;
+  animation: fade-in 0.15s ease-out;
+}
+
+.edit-hint-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  flex-shrink: 0;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* ── Toolbar dropdown menu ──────────────────────────── */
+.menu-root {
+  position: relative;
+}
+
+.menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.menu-trigger-open {
+  background: var(--border-strong);
+  color: var(--text);
+}
+
+.menu-caret {
+  font-size: 0.65rem;
+  opacity: 0.7;
+}
+
+.menu-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 150;
+  animation: modal-in 0.12s ease-out;
+}
+
+.menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.menu-item:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.menu-item-icon {
+  font-size: 0.9rem;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.menu-item-hint {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+/* ── Sidebar header & search ────────────────────────── */
+.app-sidebar-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 2px;
+}
+
+.app-sidebar-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+.app-sidebar-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--surface-3);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.app-sidebar-search {
+  font-size: 0.82rem;
+  padding: 7px 10px;
+}
+
+.app-sidebar-subtotal {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Empty state with drop target ───────────────────── */
+.empty-hint {
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  margin-top: -8px;
+}
+
+.empty-state-drop {
+  margin: 24px;
+  height: calc(100% - 48px);
+  border: 2px dashed var(--border-strong);
+  border-radius: 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.empty-state-drop.drag-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 /* ── Keyframes ──────────────────────────────────────── */

@@ -26,7 +26,10 @@ export function getStoredTheme(): Theme | null {
 }
 
 export function resolveInitialTheme(): Theme {
-  return getStoredTheme() ?? (systemPrefersDark() ? 'dark' : 'light')
+  // Warm terracotta is the default light experience — it suits the
+  // interior-design subject matter. Users who prefer the neutral light
+  // theme can cycle to it; their choice is then persisted.
+  return getStoredTheme() ?? (systemPrefersDark() ? 'dark' : 'warm')
 }
 
 export function nextTheme(theme: Theme): Theme {
