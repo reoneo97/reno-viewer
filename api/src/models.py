@@ -49,7 +49,10 @@ class AnchorCandidate(SQLModel, table=True):
             primary_key=True,
         ),
     )
-    chosen: bool = False
+    # Decision for this candidate at this anchor:
+    # '' (undecided) | 'shortlisted' | 'chosen' | 'rejected'.
+    # 'chosen' is radio-style — at most one per anchor.
+    status: str = ""
 
 
 class Anchor(SQLModel, table=True):
@@ -188,7 +191,7 @@ class CandidateRead(SQLModel):
     link: Optional[str] = None
     created_at: datetime
     anchors: List[AnchorRef] = []
-    chosen: bool = False  # whether this candidate is the chosen one for the anchor it was read under
+    status: str = ""  # decision for the anchor this candidate was read under
 
 
 class AnchorRead(SQLModel):

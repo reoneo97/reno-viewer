@@ -119,7 +119,7 @@ export function removeFromAnchor(anchorId: string, candidateId: string): Promise
   return http.delete(`/anchors/${anchorId}/candidates/${candidateId}`)
 }
 
-// ── Candidate reuse + chosen ────────────────────────────────────────────────────
+// ── Candidate reuse + decision status ───────────────────────────────────────────
 
 export function listAvailableCandidates(anchorId: string): Promise<ApiCandidate[]> {
   return http.get(`/anchors/${anchorId}/available-candidates`)
@@ -129,14 +129,14 @@ export function linkCandidate(anchorId: string, candidateId: string): Promise<Ap
   return http.post(`/anchors/${anchorId}/candidates/${candidateId}`, {})
 }
 
-export function setCandidateChosen(
+// Status lives on the anchor↔candidate link ('' | shortlisted | chosen | rejected);
+// setting 'chosen' clears any other chosen candidate on the same anchor.
+export function setCandidateStatus(
   anchorId: string,
   candidateId: string,
-  chosen: boolean,
+  status: string,
 ): Promise<ApiCandidate> {
-  const form = new FormData()
-  form.append('chosen', String(chosen))
-  return http.upload(`/anchors/${anchorId}/candidates/${candidateId}/chosen`, form, 'PATCH')
+  return http.patch(`/anchors/${anchorId}/candidates/${candidateId}/status`, { status })
 }
 
 export function deleteCandidate(candidateId: string): Promise<null> {

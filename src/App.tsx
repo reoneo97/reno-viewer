@@ -4,18 +4,22 @@ import { mapApiAnchor } from './types' // still used for FloorPlanCanvas
 import { createAnchor, getProject, listProjects, uploadFloorPlan, shareProject, downloadProject } from './api'
 import { clearToken, getToken } from './api/client'
 import { FloorPlanCanvas } from './components/FloorPlanCanvas'
+import type { FocusRequest } from './components/FloorPlanCanvas'
 import { ItemizedSidebar } from './components/ItemizedSidebar'
+import { ItemsTable } from './components/ItemsTable'
+import { BudgetView } from './components/BudgetView'
 import { LoginScreen } from './components/LoginScreen'
 import { ProjectSelector } from './components/ProjectSelector'
 import { ThemeToggle } from './components/ThemeToggle'
+import { ExportMenu } from './components/ExportMenu'
 import { ToastHost, toast } from './components/Toast'
 import { ConfirmHost } from './components/ConfirmDialog'
-import { BudgetModal } from './components/BudgetModal'
 import { useEscapeKey } from './hooks/useEscapeKey'
 import { downloadCsv } from './utils/csvExport'
 import './App.css'
 
 type Phase = 'loading' | 'login' | 'select' | 'view'
+type ViewTab = 'plan' | 'items' | 'budget'
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('loading')
@@ -25,7 +29,12 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
-  const [showBudget, setShowBudget] = useState(false)
+  const [viewTab, setViewTab] = useState<ViewTab>('plan')
+  const [dragOverPlan, setDragOverPlan] = useState(false)
+  // Sidebar → canvas "show me this pin" requests, and canvas → sidebar
+  // "this pin was opened" echoes.
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null)
+  const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEscapeKey(() => setShareUrl(null), shareUrl !== null)
@@ -53,6 +62,7 @@ export default function App() {
     try {
       const full = await getProject(p.id)
       setProject(full)
+      setViewTab('plan')
       setPhase('view')
     } catch (err) {
       console.error('Failed to load project:', err)
@@ -76,11 +86,25 @@ export default function App() {
     setProject((prev) => prev ? { ...prev, anchors: [...prev.anchors, anchor] } : prev)
   }
 
+  const uploadPlanFile = async (file: File) => {
+    if (!project) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file for the floor plan.')
+      return
+    }
+    try {
+      const updated = await uploadFloorPlan(project.id, file)
+      setProject(updated)
+      toast.success('Floor plan updated')
+    } catch (e) {
+      toast.error(`Upload failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
   const handleFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !project) return
-    const updated = await uploadFloorPlan(project.id, file)
-    setProject(updated)
+    if (file) await uploadPlanFile(file)
+    e.target.value = ''
   }
 
   const handleExport = async () => {
@@ -152,6 +176,12 @@ export default function App() {
 
   // phase === 'view'
   const anchors = project ? project.anchors.map(mapApiAnchor) : []
+  const hasPlan = Boolean(project?.floor_plan_url)
+
+  const locateAnchor = (anchorId: string) => {
+    setViewTab('plan')
+    setFocusRequest({ anchorId, nonce: Date.now() })
+  }
 
   return (
     <div className="app">
@@ -161,9 +191,24 @@ export default function App() {
         </button>
         {project && <span className="project-name-label">{project.name}</span>}
 
+        {hasPlan && (
+          <nav className="view-tabs" aria-label="Project views">
+            {([['plan', 'Plan'], ['items', 'All Items'], ['budget', 'Budget']] as const).map(([tab, tabLabel]) => (
+              <button
+                key={tab}
+                className={`view-tab ${viewTab === tab ? 'active' : ''}`}
+                onClick={() => setViewTab(tab)}
+                aria-current={viewTab === tab ? 'page' : undefined}
+              >
+                {tabLabel}
+              </button>
+            ))}
+          </nav>
+        )}
+
         <div className="toolbar-actions">
           <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
-            {project?.floor_plan_url ? 'Change Floor Plan' : 'Load Floor Plan'}
+            {hasPlan ? 'Change Floor Plan' : 'Load Floor Plan'}
           </button>
           <input
             ref={fileInputRef}
@@ -173,48 +218,36 @@ export default function App() {
             onChange={handleFloorPlanUpload}
           />
 
-          {project?.floor_plan_url && (
-            <button
-              className={`btn-toggle ${isEditMode ? 'active' : ''}`}
-              onClick={() => setIsEditMode((v) => !v)}
-            >
-              {isEditMode ? 'Editing — tap to place · drag pins to move' : 'View Mode'}
-            </button>
-          )}
-
-          {anchors.length > 0 && (
-            <span className="anchor-count">
-              {anchors.length} anchor{anchors.length !== 1 ? 's' : ''}
-            </span>
-          )}
-
-          {project?.floor_plan_url && (
+          {hasPlan && viewTab === 'plan' && (
             <>
+              <button
+                className={`btn-toggle ${isEditMode ? 'active' : ''}`}
+                onClick={() => setIsEditMode((v) => !v)}
+                title={isEditMode ? 'Finish editing' : 'Place and move anchors'}
+              >
+                {isEditMode ? '✓ Done' : '✎ Edit Plan'}
+              </button>
               <button
                 className={`btn-toggle ${showSidebar ? 'active' : ''}`}
                 onClick={() => setShowSidebar((v) => !v)}
+                title="Toggle item list"
+                aria-label="Toggle item list"
               >
-                ☰ List
+                ☰
               </button>
-              {anchors.length > 0 && (
-                <button className="btn-secondary" onClick={() => setShowBudget(true)}>
-                  Budget
-                </button>
-              )}
-              <button className="btn-secondary" onClick={handleShare} disabled={isExporting}>
-                {isExporting ? 'Working…' : 'Share'}
-              </button>
-              <button className="btn-secondary" onClick={handleExport} disabled={isExporting}>
-                Export
-              </button>
-              {anchors.length > 0 && (
-                <button
-                  className="btn-secondary"
-                  onClick={() => { downloadCsv(anchors, project!.name); toast.success('CSV downloaded') }}
-                >
-                  CSV
-                </button>
-              )}
+            </>
+          )}
+
+          {hasPlan && (
+            <>
+              <span className="toolbar-divider" aria-hidden />
+              <ExportMenu
+                busy={isExporting}
+                hasAnchors={anchors.length > 0}
+                onShare={handleShare}
+                onExport={handleExport}
+                onCsv={() => { downloadCsv(anchors, project!.name); toast.success('CSV downloaded') }}
+              />
             </>
           )}
 
@@ -252,31 +285,63 @@ export default function App() {
 
       <main className="main-area">
         {!project?.floor_plan_url ? (
-          <div className="empty-state">
+          <div
+            className={`empty-state empty-state-drop ${dragOverPlan ? 'drag-over' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setDragOverPlan(true) }}
+            onDragLeave={() => setDragOverPlan(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragOverPlan(false)
+              const file = e.dataTransfer.files?.[0]
+              if (file) void uploadPlanFile(file)
+            }}
+          >
             <div className="empty-icon">🏠</div>
-            <p>Load a floor plan to get started</p>
+            <p>Start by adding your floor plan</p>
+            <p className="empty-hint">Drag an image here, or</p>
             <button className="btn-primary" onClick={() => fileInputRef.current?.click()}>
-              Load Floor Plan
+              Choose Floor Plan
             </button>
           </div>
+        ) : viewTab === 'items' ? (
+          <ItemsTable anchors={anchors} onRefresh={refreshProject} />
+        ) : viewTab === 'budget' ? (
+          <BudgetView projectId={project!.id} anchors={anchors} />
         ) : (
           <div className="viewer-layout">
             <FloorPlanCanvas
-              floorPlanUrl={project.floor_plan_url}
+              floorPlanUrl={project!.floor_plan_url!}
               anchors={anchors}
               isEditMode={isEditMode}
               onAddAnchor={addAnchor}
               onRefresh={refreshProject}
+              focusRequest={focusRequest}
+              onAnchorSelect={setSelectedAnchorId}
             />
-            {showSidebar && <ItemizedSidebar anchors={anchors} />}
+
+            {anchors.length === 0 && !isEditMode && (
+              <div className="coach-mark">
+                <p className="coach-mark-title">Your plan is ready</p>
+                <p className="coach-mark-text">
+                  Pin the spots you're furnishing — a sofa wall, a pendant light, the vanity.
+                </p>
+                <button className="btn-primary" onClick={() => setIsEditMode(true)}>
+                  Place your first pin
+                </button>
+              </div>
+            )}
+
+            {showSidebar && (
+              <ItemizedSidebar
+                anchors={anchors}
+                onLocate={locateAnchor}
+                selectedAnchorId={selectedAnchorId}
+              />
+            )}
             <ThemeToggle />
           </div>
         )}
       </main>
-
-      {showBudget && (
-        <BudgetModal anchors={anchors} onClose={() => setShowBudget(false)} />
-      )}
 
       <ToastHost />
       <ConfirmHost />

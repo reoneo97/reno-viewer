@@ -26,12 +26,12 @@ def _key_to_data_url(key: str) -> str:
 
 
 def _project_to_snapshot_data(project: Project, session: Session) -> dict:
-    chosen_rows = session.exec(
+    link_rows = session.exec(
         select(AnchorCandidate).where(
             AnchorCandidate.anchor_id.in_([a.id for a in project.anchors])  # type: ignore[attr-defined]
         )
     ).all() if project.anchors else []
-    chosen_set = {(r.anchor_id, r.candidate_id) for r in chosen_rows if r.chosen}
+    chosen_set = {(r.anchor_id, r.candidate_id) for r in link_rows if r.status == "chosen"}
 
     return {
         "floorPlan": _key_to_data_url(project.floor_plan_key) if project.floor_plan_key else "",

@@ -30,7 +30,16 @@ _MIGRATIONS = [
        WHERE anchor_id IS NOT NULL
        ON CONFLICT DO NOTHING""",
     "ALTER TABLE anchors ADD COLUMN IF NOT EXISTS notes TEXT",
-    "ALTER TABLE anchor_candidates ADD COLUMN IF NOT EXISTS chosen BOOLEAN NOT NULL DEFAULT false",
+    # Decision status per anchor↔candidate link. An earlier dev-only revision
+    # used a `chosen` boolean; fold it into status then drop it.
+    "ALTER TABLE anchor_candidates ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT ''",
+    """DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'anchor_candidates' AND column_name = 'chosen') THEN
+            UPDATE anchor_candidates SET status = 'chosen' WHERE chosen AND status = '';
+            ALTER TABLE anchor_candidates DROP COLUMN chosen;
+        END IF;
+    END $$""",
 ]
 
 

@@ -18,9 +18,9 @@ export function CandidatePopover({ anchor }: Props) {
           {anchor.candidates.map((c) => {
             const dims = formatDims(c.width, c.height, c.depth)
             return (
-              <div key={c.id} className={`candidate-card ${c.chosen ? 'chosen' : ''}`}>
+              <div key={c.id} className={`candidate-card ${c.status === 'chosen' ? 'chosen' : ''}`}>
                 {c.urls[0] && <img src={c.urls[0]} alt={c.name} />}
-                {c.chosen && <span className="candidate-chosen-corner" title="Chosen">★</span>}
+                {c.status === 'chosen' && <span className="candidate-chosen-corner" title="Chosen">★</span>}
                 <div className="candidate-overlay">
                   <p className="candidate-name">{c.name}</p>
                   {dims && <p className="candidate-meta">{dims}</p>}

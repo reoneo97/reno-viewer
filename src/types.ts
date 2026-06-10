@@ -7,16 +7,18 @@ export const ANCHOR_CATEGORIES = [
   'Others',
 ]
 
+// Interior-design palette: terracotta, brass, sage, slate. Muted enough to
+// sit comfortably on a floor plan, distinct enough to scan at a glance.
 export const CATEGORY_COLORS: Record<string, string> = {
-  'Furniture':      '#4a90d9',
-  'Lights and Fans':'#f1c40f',
-  'Bathroom':       '#1abc9c',
-  'Kitchen':        '#8e44ad',
-  'Appliances':     '#e67e22',
-  'Others':         '#95a5a6',
+  'Furniture':      '#b5654a',
+  'Lights and Fans':'#c99a3c',
+  'Bathroom':       '#5f8d83',
+  'Kitchen':        '#8a6d8f',
+  'Appliances':     '#6e82a3',
+  'Others':         '#8d8678',
 }
 
-export const DEFAULT_ANCHOR_COLOR = '#7f8c8d'
+export const DEFAULT_ANCHOR_COLOR = '#7d7568'
 
 export function anchorColor(category: string): string {
   return CATEGORY_COLORS[category] ?? DEFAULT_ANCHOR_COLOR
@@ -33,6 +35,21 @@ export function formatDims(w: string, h: string, d: string): string {
 
 // ── Frontend component types ──────────────────────────────────────────────────
 
+// Decision state for a candidate, scoped to the anchor it was read under
+// (a shared candidate can be chosen in one spot and rejected in another).
+// Persisted on the anchor↔candidate link; '' = no decision yet.
+export type CandidateStatus = '' | 'shortlisted' | 'chosen' | 'rejected'
+
+export const STATUS_LABELS: Record<Exclude<CandidateStatus, ''>, string> = {
+  shortlisted: 'Shortlisted',
+  chosen: 'Chosen',
+  rejected: 'Rejected',
+}
+
+export function isCandidateStatus(v: unknown): v is CandidateStatus {
+  return v === '' || v === 'shortlisted' || v === 'chosen' || v === 'rejected'
+}
+
 export interface AnchorRef {
   id: string
   label: string
@@ -48,8 +65,8 @@ export interface CandidateImage {
   depth: string
   price: string
   link: string
+  status: CandidateStatus  // decision for the anchor this candidate was read under
   sharedWith: AnchorRef[]  // other anchors this candidate also belongs to
-  chosen: boolean          // the picked option for the anchor it was read under
 }
 
 export interface Anchor {
@@ -74,9 +91,9 @@ export interface ApiCandidate {
   depth: string | null
   price: string | null
   link: string | null
+  status?: string | null
   created_at: string
   anchors: AnchorRef[]
-  chosen: boolean
 }
 
 export interface ApiAnchor {
@@ -112,8 +129,8 @@ export function mapApiCandidate(c: ApiCandidate, anchorId: string): CandidateIma
     depth: c.depth ?? '',
     price: c.price ?? '',
     link: c.link ?? '',
+    status: isCandidateStatus(c.status) ? c.status : '',
     sharedWith: (c.anchors ?? []).filter((ref) => ref.id !== anchorId),
-    chosen: c.chosen ?? false,
   }
 }
 

@@ -1,40 +1,74 @@
 import { useState } from 'react'
-import type { Anchor, CandidateImage } from '../types'
-import { anchorColor, formatDims } from '../types'
+import type { Anchor, CandidateImage, CandidateStatus } from '../types'
+import { anchorColor } from '../types'
+import { setCandidateStatus } from '../api'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { toast } from './Toast'
+import { Lightbox } from './Lightbox'
+import { CompareView } from './CompareView'
+import { StatusBadge, StatusPicker } from './StatusBadge'
 
 interface Props {
   anchor: Anchor
+  onRefresh?: () => void
   onClose: () => void
   onEdit?: () => void
 }
 
-function ImageGallery({ urls }: { urls: string[] }) {
-  const [active, setActive] = useState(0)
-  if (urls.length === 0) return <div className="view-candidate-no-img">No image</div>
-  return (
-    <div className="gallery">
-      <img src={urls[active]} alt="" className="gallery-main" />
-      {urls.length > 1 && (
-        <div className="gallery-thumbs">
-          {urls.map((url, i) => (
-            <img
-              key={i}
-              src={url}
-              alt=""
-              className={`gallery-thumb ${i === active ? 'active' : ''}`}
-              onClick={() => setActive(i)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-export function CandidateViewModal({ anchor, onClose, onEdit }: Props) {
+export function CandidateViewModal({ anchor, onRefresh, onClose, onEdit }: Props) {
   const color = anchorColor(anchor.category)
-  useEscapeKey(onClose)
+  const [lightbox, setLightbox] = useState<CandidateImage | null>(null)
+  const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
+  const [comparing, setComparing] = useState(false)
+  // Optimistic status overrides so chips respond instantly; the API call and
+  // refresh catch up in the background.
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, CandidateStatus>>({})
+
+  useEscapeKey(onClose, lightbox === null && !comparing)
+
+  const candidates = anchor.candidates.map((c) =>
+    statusOverrides[c.id] !== undefined ? { ...c, status: statusOverrides[c.id] } : c,
+  )
+
+  const setStatus = async (candidateId: string, status: CandidateStatus) => {
+    setStatusOverrides((prev) => {
+      const next = { ...prev, [candidateId]: status }
+      // 'chosen' is radio-style per anchor — mirror the server-side clear.
+      if (status === 'chosen') {
+        for (const c of anchor.candidates) {
+          if (c.id !== candidateId && (next[c.id] ?? c.status) === 'chosen') next[c.id] = ''
+        }
+      }
+      return next
+    })
+    try {
+      await setCandidateStatus(anchor.id, candidateId, status)
+      onRefresh?.()
+    } catch {
+      toast.error('Failed to update status')
+      setStatusOverrides((prev) => {
+        const next = { ...prev }
+        delete next[candidateId]
+        return next
+      })
+    }
+  }
+
+  const toggleCompare = (id: string) =>
+    setCompareIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else if (next.size < 4) {
+        next.add(id)
+      } else {
+        toast.info('Compare up to 4 candidates at a time')
+      }
+      return next
+    })
+
+  const compareCandidates = candidates.filter((c) => compareIds.has(c.id))
+  const canCompare = candidates.length > 1
 
   const handleBackdrop = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose()
@@ -60,20 +94,47 @@ export function CandidateViewModal({ anchor, onClose, onEdit }: Props) {
         </div>
 
         <div className="view-modal-body">
-          {anchor.candidates.length === 0 ? (
+          {candidates.length === 0 ? (
             <p className="view-modal-empty">No candidates added to this anchor yet.</p>
           ) : (
             <div className="view-candidate-grid">
-              {anchor.candidates.map((c: CandidateImage) => {
-                const dims = formatDims(c.width, c.height, c.depth)
+              {candidates.map((c) => {
+                const dims = [c.width, c.height, c.depth].filter(Boolean).join(' × ')
+                const selected = compareIds.has(c.id)
                 return (
-                  <div key={c.id} className={`view-candidate-card ${c.chosen ? 'chosen' : ''}`}>
-                    <div className="view-candidate-img-wrap">
-                      <ImageGallery urls={c.urls} />
-                      {c.chosen && <span className="view-candidate-chosen-badge" title="Chosen">★ Chosen</span>}
-                    </div>
+                  <div
+                    key={c.id}
+                    className={`view-candidate-card ${selected ? 'compare-selected' : ''} ${c.status === 'rejected' ? 'view-candidate-rejected' : ''}`}
+                  >
+                    <button
+                      className="view-candidate-img-wrap"
+                      onClick={() => c.urls.length > 0 && setLightbox(c)}
+                      title={c.urls.length > 0 ? 'View full size' : undefined}
+                    >
+                      {c.urls[0]
+                        ? <img src={c.urls[0]} alt={c.name} loading="lazy" />
+                        : <span className="view-candidate-no-img">No image</span>
+                      }
+                      {c.urls.length > 1 && (
+                        <span className="view-candidate-img-count">+{c.urls.length - 1}</span>
+                      )}
+                    </button>
+
+                    {canCompare && (
+                      <label className="compare-check" title="Select to compare">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleCompare(c.id)}
+                        />
+                        Compare
+                      </label>
+                    )}
+
                     <div className="view-candidate-info">
-                      <p className="view-candidate-name">{c.name}</p>
+                      <p className="view-candidate-name">
+                        {c.name} <StatusBadge status={c.status} />
+                      </p>
                       {c.description && <p className="view-candidate-desc">{c.description}</p>}
                       {dims && <p className="view-candidate-dims">{dims}</p>}
                       {c.price && <p className="view-candidate-price">${c.price}</p>}
@@ -88,6 +149,7 @@ export function CandidateViewModal({ anchor, onClose, onEdit }: Props) {
                           View product ↗
                         </a>
                       )}
+                      <StatusPicker status={c.status} onChange={(s) => setStatus(c.id, s)} />
                     </div>
                   </div>
                 )
@@ -95,7 +157,42 @@ export function CandidateViewModal({ anchor, onClose, onEdit }: Props) {
             </div>
           )}
         </div>
+
+        {compareIds.size > 0 && (
+          <div className="compare-bar">
+            <span className="compare-bar-label">
+              {compareIds.size} selected{compareIds.size < 2 ? ' — pick at least 2' : ''}
+            </span>
+            <button className="btn-secondary" onClick={() => setCompareIds(new Set())}>
+              Clear
+            </button>
+            <button
+              className="btn-primary"
+              disabled={compareIds.size < 2}
+              onClick={() => setComparing(true)}
+            >
+              Compare side-by-side
+            </button>
+          </div>
+        )}
       </div>
+
+      {lightbox && (
+        <Lightbox
+          images={lightbox.urls}
+          caption={lightbox.name}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+
+      {comparing && (
+        <CompareView
+          title={anchor.label}
+          candidates={compareCandidates}
+          onSetStatus={setStatus}
+          onClose={() => setComparing(false)}
+        />
+      )}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlmodel import Session, select
+from sqlmodel import Session, SQLModel, select
 
 from ..db import get_session
 from ..models import (
@@ -14,27 +14,30 @@ from .. import storage
 router = APIRouter(tags=["candidates"])
 
 
-def candidate_read(c: Candidate, chosen: bool = False) -> CandidateRead:
+VALID_STATUSES = {"", "shortlisted", "chosen", "rejected"}
+
+
+def candidate_read(c: Candidate, status: str = "") -> CandidateRead:
     """Shared helper used by all routers that return CandidateRead.
 
-    `chosen` is contextual to the anchor the candidate is being read under, so
+    `status` is contextual to the anchor the candidate is being read under, so
     callers that build an anchor's candidate list should pass it explicitly via
     `anchor_candidate_reads`.
     """
     data = CandidateRead.model_validate(c)
     data.image_urls = [storage.presigned_url(p.image_key) for p in c.photos]
     data.anchors = [AnchorRef(id=a.id, label=a.label) for a in c.anchors]
-    data.chosen = chosen
+    data.status = status
     return data
 
 
 def anchor_candidate_reads(session: Session, anchor: Anchor) -> List[CandidateRead]:
-    """Build CandidateRead list for an anchor, populating per-anchor `chosen`."""
+    """Build CandidateRead list for an anchor, populating per-anchor `status`."""
     rows = session.exec(
         select(AnchorCandidate).where(AnchorCandidate.anchor_id == anchor.id)
     ).all()
-    chosen_map = {r.candidate_id: r.chosen for r in rows}
-    return [candidate_read(c, chosen_map.get(c.id, False)) for c in anchor.candidates]
+    status_map = {r.candidate_id: r.status for r in rows}
+    return [candidate_read(c, status_map.get(c.id, "")) for c in anchor.candidates]
 
 
 @router.post("/anchors/{anchor_id}/candidates", response_model=CandidateRead, status_code=201)
@@ -164,33 +167,44 @@ def link_candidate_to_anchor(
     return candidate_read(candidate)
 
 
-@router.patch("/anchors/{anchor_id}/candidates/{candidate_id}/chosen", response_model=CandidateRead)
-def set_candidate_chosen(
+class StatusUpdate(SQLModel):
+    status: str
+
+
+@router.patch("/anchors/{anchor_id}/candidates/{candidate_id}/status", response_model=CandidateRead)
+def set_candidate_status(
     anchor_id: uuid.UUID,
     candidate_id: uuid.UUID,
-    chosen: bool = Form(...),
+    body: StatusUpdate,
     session: Session = Depends(get_session),
 ):
-    """Mark a candidate as the chosen one for this anchor (radio-style)."""
+    """Set the decision status for a candidate at this anchor.
+
+    'chosen' is radio-style: any other chosen candidate on the anchor is
+    cleared back to undecided.
+    """
+    if body.status not in VALID_STATUSES:
+        raise HTTPException(422, f"Invalid status; expected one of {sorted(VALID_STATUSES)}")
     link = session.get(AnchorCandidate, (anchor_id, candidate_id))
     if not link:
         raise HTTPException(404, "Candidate not linked to this anchor")
 
-    if chosen:
-        # clear any other chosen candidate in this anchor first
+    if body.status == "chosen":
         others = session.exec(
             select(AnchorCandidate).where(AnchorCandidate.anchor_id == anchor_id)
         ).all()
         for row in others:
-            row.chosen = (row.candidate_id == candidate_id)
+            row.status = "chosen" if row.candidate_id == candidate_id else (
+                "" if row.status == "chosen" else row.status
+            )
             session.add(row)
     else:
-        link.chosen = False
+        link.status = body.status
         session.add(link)
 
     session.commit()
     candidate = session.get(Candidate, candidate_id)
-    return candidate_read(candidate, chosen)
+    return candidate_read(candidate, body.status)
 
 
 @router.patch("/candidates/{candidate_id}", response_model=CandidateRead)

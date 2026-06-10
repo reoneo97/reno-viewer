@@ -22,6 +22,8 @@ export function getStoredTheme(): Theme | null {
 }
 
 export function resolveInitialTheme(): Theme {
+  // Warm terracotta is the default — it suits the interior-design subject
+  // matter. Users can cycle to dark/light; their choice is then persisted.
   return getStoredTheme() ?? 'warm'
 }
 
