@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Anchor, CandidateImage } from '../types'
+import type { Anchor, CandidateImage, CandidateStatus } from '../types'
 import { ANCHOR_CATEGORIES } from '../types'
 import { addCandidateImage, createCandidate, deleteCandidate, removeFromAnchor, deleteAnchor, updateAnchor, updateCandidate, duplicateAnchor } from '../api'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { confirmDialog } from './ConfirmDialog'
 import { toast } from './Toast'
+import { StatusPicker } from './StatusBadge'
 
 interface Props {
   anchor: Anchor
+  // Called whenever the modal closes; edits autosave, so the parent should
+  // refresh and unmount. There is no separate "cancel" path.
   onSave: () => void
-  onClose: () => void
 }
 
 interface PendingImage {
@@ -33,27 +35,90 @@ const emptyAddForm: AddForm = {
   width: '', height: '', depth: '', price: '', link: '',
 }
 
-export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
+type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+// Edits autosave on blur (and on discrete actions like status changes), so
+// there is no Cancel/Save pair — just Done. The footer reports save state.
+export function AnchorEditModal({ anchor, onSave }: Props) {
   const [mode, setMode] = useState<'list' | 'add'>('list')
   const [label, setLabel] = useState(anchor.label)
   const [category, setCategory] = useState(anchor.category)
   const [notes, setNotes] = useState(anchor.notes)
   const [candidates, setCandidates] = useState<CandidateImage[]>(anchor.candidates)
-  const [toDelete, setToDelete] = useState<Set<string>>(new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [saving, setSaving] = useState(false)
-  const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [closing, setClosing] = useState(false)
   const [addForm, setAddForm] = useState<AddForm>(emptyAddForm)
   const [savingAdd, setSavingAdd] = useState(false)
-  const inFlight = useRef(false)
+  const inflight = useRef<Set<Promise<unknown>>>(new Set())
   const addFileInputRef = useRef<HTMLInputElement>(null)
   const editFileInputRef = useRef<HTMLInputElement>(null)
   const [editImageTarget, setEditImageTarget] = useState<string | null>(null) // candidate id
 
-  const anyBusy = saving || savingIds.size > 0
+  // Track a save request: footer indicator reflects whether anything is
+  // still in flight, and Done awaits the whole set before refreshing.
+  const track = <T,>(p: Promise<T>): Promise<T> => {
+    inflight.current.add(p)
+    setSaveState('saving')
+    p.then(
+      () => { if (inflight.current.size === 1) setSaveState('saved') },
+      () => { setSaveState('error'); toast.error('Failed to save changes') },
+    ).finally(() => inflight.current.delete(p))
+    return p
+  }
 
-  // Esc: in add mode go back (with discard guard), otherwise close the modal.
-  useEscapeKey(() => { if (mode === 'add') handleBack(); else onClose() })
+  // ── Autosave: anchor fields ─────────────────────────────────────────────────
+
+  const saveAnchorFields = (patch?: { category?: string }) =>
+    track(updateAnchor(anchor.id, {
+      label: label.trim() || anchor.label,
+      category: (patch?.category ?? category) || undefined,
+      notes: notes.trim() || undefined,
+    }))
+
+  // ── Autosave: candidate fields ──────────────────────────────────────────────
+
+  const updateCandidateField = (id: string, patch: Partial<CandidateImage>) =>
+    setCandidates((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+
+  const saveCandidate = (c: CandidateImage) =>
+    track(updateCandidate(c.id, {
+      name: c.name, description: c.description || undefined,
+      width: c.width || undefined, height: c.height || undefined,
+      depth: c.depth || undefined, price: c.price || undefined,
+      link: c.link || undefined, status: c.status,
+    }))
+
+  const saveCandidateById = (id: string) => {
+    const c = candidates.find((c) => c.id === id)
+    if (c) void saveCandidate(c)
+  }
+
+  const setCandidateStatus = (id: string, status: CandidateStatus) => {
+    const c = candidates.find((c) => c.id === id)
+    if (!c) return
+    updateCandidateField(id, { status })
+    void saveCandidate({ ...c, status })
+  }
+
+  // ── Done / close ────────────────────────────────────────────────────────────
+
+  const handleDone = async () => {
+    if (closing) return
+    setClosing(true)
+    try {
+      // Final anchor-field save catches edits in the still-focused input,
+      // then wait out any candidate PATCHes started by the blur just now.
+      await saveAnchorFields().catch(() => { /* toasted by track() */ })
+      await Promise.allSettled([...inflight.current])
+      onSave()
+    } finally {
+      setClosing(false)
+    }
+  }
+
+  // Esc: in add mode go back (with discard guard), otherwise finish up.
+  useEscapeKey(() => { if (mode === 'add') void handleBack(); else void handleDone() })
 
   const setAddField = (patch: Partial<AddForm>) =>
     setAddForm((prev) => ({ ...prev, ...patch }))
@@ -113,8 +178,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
       toast.error('Please add at least one image.')
       return
     }
-    if (inFlight.current) return
-    inFlight.current = true
+    if (savingAdd) return
     setSavingAdd(true)
     try {
       const saved = await createCandidate(anchor.id, addForm.images.map((i) => i.file), {
@@ -132,24 +196,20 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
         description: saved.description ?? '',
         width: saved.width ?? '', height: saved.height ?? '',
         depth: saved.depth ?? '', price: saved.price ?? '', link: saved.link ?? '',
-        sharedWith: [],
+        status: '', sharedWith: [],
       }])
       setAddForm(emptyAddForm)
       setMode('list')
       toast.success('Candidate added')
     } finally {
-      inFlight.current = false
       setSavingAdd(false)
     }
   }
 
-  // ── Existing candidate editing ──────────────────────────────────────────────
+  // ── Candidate removal (immediate, with confirm) ─────────────────────────────
 
   const toggleExpanded = (id: string) =>
     setExpandedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-
-  const updateCandidateField = (id: string, patch: Partial<CandidateImage>) =>
-    setCandidates((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
 
   const removeCandidate = async (id: string) => {
     const c = candidates.find((c) => c.id === id)
@@ -168,66 +228,22 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
           danger: true,
         })
     if (!ok) return
-    if (isShared) {
-      await removeFromAnchor(anchor.id, id)
-    } else {
-      setToDelete((prev) => new Set(prev).add(id))
-    }
-    setCandidates((prev) => prev.filter((c) => c.id !== id))
-  }
-
-  const saveCandidate = async (id: string) => {
-    const c = candidates.find((c) => c.id === id)
-    if (!c || savingIds.has(id)) return
-    setSavingIds((prev) => new Set(prev).add(id))
     try {
-      await updateCandidate(id, {
-        name: c.name, description: c.description || undefined,
-        width: c.width || undefined, height: c.height || undefined,
-        depth: c.depth || undefined, price: c.price || undefined, link: c.link || undefined,
-      })
-      toast.success('Candidate saved')
-    } finally {
-      setSavingIds((prev) => { const n = new Set(prev); n.delete(id); return n })
-    }
+      await track(isShared ? removeFromAnchor(anchor.id, id) : deleteCandidate(id))
+      setCandidates((prev) => prev.filter((c) => c.id !== id))
+    } catch { /* error toast handled by track() */ }
   }
 
   const handleAddImageToCandidate = async (candidateId: string, file: File) => {
-    const saved = await addCandidateImage(candidateId, file)
-    setCandidates((prev) => prev.map((c) =>
-      c.id === candidateId ? { ...c, urls: saved.image_urls ?? [] } : c
-    ))
-  }
-
-  const handleSave = async () => {
-    if (inFlight.current) return
-    inFlight.current = true
-    setSaving(true)
     try {
-      await Promise.all([...toDelete].map((id) => deleteCandidate(id)))
-      await Promise.all(
-        candidates.map((c) =>
-          updateCandidate(c.id, {
-            name: c.name, description: c.description || undefined,
-            width: c.width || undefined, height: c.height || undefined,
-            depth: c.depth || undefined, price: c.price || undefined, link: c.link || undefined,
-          })
-        )
-      )
-      await updateAnchor(anchor.id, {
-        label: label.trim() || anchor.label,
-        category: category || undefined,
-        notes: notes.trim() || undefined,
-      })
-      onSave()
-    } finally {
-      inFlight.current = false
-      setSaving(false)
-    }
+      const saved = await track(addCandidateImage(candidateId, file))
+      setCandidates((prev) => prev.map((c) =>
+        c.id === candidateId ? { ...c, urls: saved.image_urls ?? [] } : c
+      ))
+    } catch { /* error toast handled by track() */ }
   }
 
   const handleDelete = async () => {
-    if (inFlight.current) return
     const ok = await confirmDialog({
       title: 'Delete anchor',
       message: `Delete anchor "${anchor.label}" and all of its candidates? This cannot be undone.`,
@@ -235,36 +251,31 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
       danger: true,
     })
     if (!ok) return
-    inFlight.current = true
-    setSaving(true)
+    setClosing(true)
     try {
       await deleteAnchor(anchor.id)
       onSave()
     } finally {
-      inFlight.current = false
-      setSaving(false)
+      setClosing(false)
     }
   }
 
   const handleDuplicate = async () => {
-    if (inFlight.current) return
-    inFlight.current = true
-    setSaving(true)
+    if (closing) return
+    setClosing(true)
     try {
       await duplicateAnchor(anchor.id)
       toast.success(`Duplicated "${anchor.label}"`)
       onSave()
     } catch {
       toast.error('Failed to duplicate anchor')
-    } finally {
-      inFlight.current = false
-      setSaving(false)
+      setClosing(false)
     }
   }
 
   const handleBackdrop = (e: React.MouseEvent) => {
     e.stopPropagation()
-    // clicking outside does nothing — use Cancel/✕ to close
+    // clicking outside does nothing — use Done/✕ to close
   }
 
   // ── Add candidate view ──────────────────────────────────────────────────────
@@ -410,7 +421,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
       <div className="modal">
         <div className="modal-header">
           <h2>Edit Anchor</h2>
-          <button className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
+          <button className="icon-btn" aria-label="Close" onClick={() => { void handleDone() }}>✕</button>
         </div>
 
         <div className="modal-body">
@@ -419,11 +430,16 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
             className="text-input"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
+            onBlur={() => { void saveAnchorFields() }}
             placeholder="e.g. Living Room Sofa"
           />
 
           <label className="field-label" style={{ marginTop: 16 }}>Category</label>
-          <select className="text-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <select
+            className="text-input"
+            value={category}
+            onChange={(e) => { setCategory(e.target.value); void saveAnchorFields({ category: e.target.value }) }}
+          >
             <option value="">— None —</option>
             {ANCHOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -433,6 +449,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
             className="text-input text-area"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            onBlur={() => { void saveAnchorFields() }}
             placeholder="Constraints, measurements, reminders…"
             rows={2}
           />
@@ -506,17 +523,17 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
                             className="text-input candidate-name-input"
                             value={c.name}
                             onChange={(e) => updateCandidateField(c.id, { name: e.target.value })}
+                            onBlur={() => saveCandidateById(c.id)}
                             placeholder="Name"
                           />
-                          <button className="btn-save-candidate" onClick={() => saveCandidate(c.id)} disabled={savingIds.has(c.id)}>
-                            {savingIds.has(c.id) ? '…' : 'Save'}
-                          </button>
                           <button className="remove-btn" onClick={() => removeCandidate(c.id)}>✕</button>
                         </div>
+                        <StatusPicker status={c.status} onChange={(s) => setCandidateStatus(c.id, s)} />
                         <textarea
                           className="text-input text-area"
                           value={c.description}
                           onChange={(e) => updateCandidateField(c.id, { description: e.target.value })}
+                          onBlur={() => saveCandidateById(c.id)}
                           placeholder="Description…"
                           rows={2}
                           style={{ marginTop: 6 }}
@@ -530,6 +547,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
                                   className="text-input dim-input"
                                   value={c[dim]}
                                   onChange={(e) => updateCandidateField(c.id, { [dim]: e.target.value })}
+                                  onBlur={() => saveCandidateById(c.id)}
                                   placeholder="—"
                                 />
                               </div>
@@ -540,6 +558,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
                                 className="text-input dim-input"
                                 value={c.price}
                                 onChange={(e) => updateCandidateField(c.id, { price: e.target.value })}
+                                onBlur={() => saveCandidateById(c.id)}
                                 placeholder="—"
                               />
                             </div>
@@ -548,6 +567,7 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
                             className="text-input"
                             value={c.link}
                             onChange={(e) => updateCandidateField(c.id, { link: e.target.value })}
+                            onBlur={() => saveCandidateById(c.id)}
                             placeholder="https://…"
                             style={{ marginTop: 6 }}
                           />
@@ -579,13 +599,17 @@ export function AnchorEditModal({ anchor, onSave, onClose }: Props) {
 
         <div className="modal-footer">
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn-danger" onClick={handleDelete} disabled={anyBusy}>Delete</button>
-            <button className="btn-secondary" onClick={handleDuplicate} disabled={anyBusy} title="Duplicate this anchor">Duplicate</button>
+            <button className="btn-danger" onClick={handleDelete} disabled={closing}>Delete</button>
+            <button className="btn-secondary" onClick={handleDuplicate} disabled={closing} title="Duplicate this anchor">Duplicate</button>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn-secondary" onClick={onClose} disabled={anyBusy}>Cancel</button>
-            <button className="btn-primary" onClick={handleSave} disabled={anyBusy}>
-              {saving ? 'Saving…' : 'Save'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className={`save-indicator save-indicator-${saveState}`} role="status">
+              {saveState === 'saving' && <><span className="spinner spinner-sm" /> Saving…</>}
+              {saveState === 'saved' && 'All changes saved ✓'}
+              {saveState === 'error' && 'Some changes failed to save'}
+            </span>
+            <button className="btn-primary" onClick={() => { void handleDone() }} disabled={closing}>
+              {closing ? 'Closing…' : 'Done'}
             </button>
           </div>
         </div>

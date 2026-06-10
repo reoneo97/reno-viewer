@@ -10,7 +10,8 @@ const makeAnchor = (overrides: Partial<Anchor> = {}): Anchor => ({
 
 const makeCandidate = (name: string, price = '500', extra = {}) => ({
   id: crypto.randomUUID(), urls: [], description: '',
-  width: '80', height: '70', depth: '50', link: 'https://example.com', sharedWith: [],
+  width: '80', height: '70', depth: '50', link: 'https://example.com',
+  status: '' as const, sharedWith: [],
   name, price,
   ...extra,
 })

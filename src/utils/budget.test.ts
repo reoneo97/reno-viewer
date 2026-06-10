@@ -10,7 +10,8 @@ const makeAnchor = (overrides: Partial<Anchor> = {}): Anchor => ({
 
 const makeCandidate = (price: string, extra = {}) => ({
   id: crypto.randomUUID(), name: 'Item', urls: [], description: '',
-  width: '', height: '', depth: '', link: '', sharedWith: [],
+  width: '', height: '', depth: '', link: '',
+  status: '' as const, sharedWith: [],
   price,
   ...extra,
 })
@@ -77,6 +78,27 @@ describe('computeBudget', () => {
     const anchors = [makeAnchor({ category: '', candidates: [makeCandidate('50')] })]
     const { lines } = computeBudget(anchors)
     expect(lines[0].category).toBe('Uncategorised')
+  })
+
+  it('chosenOnly counts only candidates marked chosen', () => {
+    const anchors = [
+      makeAnchor({
+        candidates: [
+          makeCandidate('500', { status: 'chosen' }),
+          makeCandidate('300', { status: 'shortlisted' }),
+          makeCandidate('200'),
+        ],
+      }),
+    ]
+    expect(computeBudget(anchors, true).grand).toBe(500)
+    expect(computeBudget(anchors).grand).toBe(1000)
+  })
+
+  it('chosenOnly counts anchors without chosen candidates as unpriced', () => {
+    const anchors = [makeAnchor({ candidates: [makeCandidate('100', { status: 'shortlisted' })] })]
+    const { unpricedAnchors, grand } = computeBudget(anchors, true)
+    expect(grand).toBe(0)
+    expect(unpricedAnchors).toBe(1)
   })
 
   it('sorts lines by total descending', () => {

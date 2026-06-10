@@ -24,6 +24,21 @@ export function anchorColor(category: string): string {
 
 // ── Frontend component types ──────────────────────────────────────────────────
 
+// Decision state for a candidate. Empty string = no decision yet.
+// NOTE: persisting status requires the API to accept/return a `status`
+// field on candidates; until then it is kept optimistically in client state.
+export type CandidateStatus = '' | 'shortlisted' | 'chosen' | 'rejected'
+
+export const STATUS_LABELS: Record<Exclude<CandidateStatus, ''>, string> = {
+  shortlisted: 'Shortlisted',
+  chosen: 'Chosen',
+  rejected: 'Rejected',
+}
+
+export function isCandidateStatus(v: unknown): v is CandidateStatus {
+  return v === '' || v === 'shortlisted' || v === 'chosen' || v === 'rejected'
+}
+
 export interface AnchorRef {
   id: string
   label: string
@@ -39,6 +54,7 @@ export interface CandidateImage {
   depth: string
   price: string
   link: string
+  status: CandidateStatus
   sharedWith: AnchorRef[]  // other anchors this candidate also belongs to
 }
 
@@ -64,6 +80,7 @@ export interface ApiCandidate {
   depth: string | null
   price: string | null
   link: string | null
+  status?: string | null
   created_at: string
   anchors: AnchorRef[]
 }
@@ -108,6 +125,7 @@ export function mapApiAnchor(a: ApiAnchor): Anchor {
       depth: c.depth ?? '',
       price: c.price ?? '',
       link: c.link ?? '',
+      status: isCandidateStatus(c.status) ? c.status : '',
       sharedWith: (c.anchors ?? []).filter((ref) => ref.id !== a.id),
     })),
   }

@@ -88,27 +88,42 @@ export function ProjectSelector({ projects, onSelect, onProjectsChange, onLogout
           <p className="selector-empty">No projects yet — create one to get started.</p>
         ) : (
           <div className="project-grid">
-            {projects.map((p) => (
-              <div key={p.id} className="project-card" onClick={() => onSelect(p)}>
-                <div className="project-card-thumb">
-                  {p.floor_plan_url
-                    ? <img src={p.floor_plan_url} alt={p.name} />
-                    : <span className="project-card-placeholder">No floor plan</span>
-                  }
+            {projects.map((p) => {
+              // List responses may omit anchors; only show stats when present.
+              const anchors = p.anchors ?? []
+              const candidateCount = anchors.reduce((n, a) => n + (a.candidates?.length ?? 0), 0)
+              const created = p.created_at
+                ? new Date(p.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+                : null
+              return (
+                <div key={p.id} className="project-card" onClick={() => onSelect(p)}>
+                  <div className="project-card-thumb">
+                    {p.floor_plan_url
+                      ? <img src={p.floor_plan_url} alt={p.name} loading="lazy" />
+                      : <span className="project-card-placeholder">No floor plan</span>
+                    }
+                  </div>
+                  <div className="project-card-footer">
+                    <div className="project-card-text">
+                      <span className="project-card-name">{p.name}</span>
+                      <span className="project-card-meta">
+                        {anchors.length > 0
+                          ? `${anchors.length} pin${anchors.length !== 1 ? 's' : ''} · ${candidateCount} item${candidateCount !== 1 ? 's' : ''}`
+                          : created ? `Created ${created}` : ' '}
+                      </span>
+                    </div>
+                    <button
+                      className="remove-btn"
+                      onClick={(e) => handleDelete(e, p.id)}
+                      title="Delete project"
+                      aria-label={`Delete project ${p.name}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <div className="project-card-footer">
-                  <span className="project-card-name">{p.name}</span>
-                  <button
-                    className="remove-btn"
-                    onClick={(e) => handleDelete(e, p.id)}
-                    title="Delete project"
-                    aria-label={`Delete project ${p.name}`}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

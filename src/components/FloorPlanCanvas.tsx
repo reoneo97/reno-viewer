@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Anchor } from '../types'
 import { anchorColor } from '../types'
 import { AnchorPoint } from './AnchorPoint'
@@ -6,12 +6,22 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface Point { x: number; y: number }
 
+export interface FocusRequest {
+  anchorId: string
+  // Distinguishes repeated requests for the same anchor.
+  nonce: number
+}
+
 interface Props {
   floorPlanUrl: string
   anchors: Anchor[]
   isEditMode: boolean
   onAddAnchor: (x: number, y: number) => Promise<void>
   onRefresh: () => void
+  // Pan/zoom to an anchor and pulse it (issued by the sidebar).
+  focusRequest?: FocusRequest | null
+  // Fired when a pin is opened in view mode (lets the sidebar follow along).
+  onAnchorSelect?: (anchorId: string) => void
 }
 
 const MIN_SCALE = 0.3
@@ -23,7 +33,7 @@ const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y +
 // Legend key for anchors without a category.
 const UNCATEGORISED = ''
 
-export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor, onRefresh }: Props) {
+export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor, onRefresh, focusRequest, onAnchorSelect }: Props) {
   const imgRef = useRef<HTMLImageElement>(null)
 
   // scale/offset are mirrored into refs so the pointer handlers always read
@@ -40,6 +50,9 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
   const [pending, setPending] = useState<Point | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const [animating, setAnimating] = useState(false)
+  const focusTimers = useRef<ReturnType<typeof setTimeout>[]>([])
   const lastConfirmAt = useRef(0)
 
   // Active pointers, keyed by pointerId, for pan + pinch-zoom.
@@ -48,6 +61,43 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
   const pinchStart = useRef({ dist: 0, scale: 1, mid: { x: 0, y: 0 }, ox: 0, oy: 0 })
 
   useEscapeKey(() => setPending(null), pending !== null)
+
+  // Sidebar → canvas: pan/zoom so the requested anchor is centred, then
+  // pulse it. The transform transition is enabled only for this animation
+  // so wheel/pinch zooming stays immediate.
+  useEffect(() => {
+    if (!focusRequest) return
+    const anchor = anchors.find((a) => a.id === focusRequest.anchorId)
+    const img = imgRef.current
+    if (!anchor || !img) return
+
+    // Make sure the pin isn't filtered out by the legend.
+    setHiddenCategories((prev) => {
+      if (!prev.has(anchor.category)) return prev
+      const next = new Set(prev)
+      next.delete(anchor.category)
+      return next
+    })
+
+    const targetScale = clampScale(Math.max(scaleRef.current, 1.5))
+    // offsetWidth/Height are layout sizes, unaffected by the CSS transform.
+    const dx = (anchor.x / 100 - 0.5) * img.offsetWidth
+    const dy = (anchor.y / 100 - 0.5) * img.offsetHeight
+
+    setAnimating(true)
+    setScale(targetScale)
+    setOffset({ x: -dx * targetScale, y: -dy * targetScale })
+    setHighlightedId(anchor.id)
+
+    focusTimers.current.forEach(clearTimeout)
+    focusTimers.current = [
+      setTimeout(() => setAnimating(false), 450),
+      setTimeout(() => setHighlightedId(null), 2000),
+    ]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest])
+
+  useEffect(() => () => focusTimers.current.forEach(clearTimeout), [])
 
   // Convert a screen coordinate to a percentage of the floor-plan image.
   const clientToPercent = (clientX: number, clientY: number): Point | null => {
@@ -179,7 +229,7 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
       style={{ cursor: isEditMode ? 'crosshair' : isPanning ? 'grabbing' : 'grab' }}
     >
       <div
-        className="canvas-inner"
+        className={`canvas-inner ${animating ? 'canvas-animating' : ''}`}
         style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}
         onClick={handleImageClick}
       >
@@ -193,6 +243,8 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
             onRefresh={onRefresh}
             clientToPercent={clientToPercent}
             pinScale={pinScale}
+            highlighted={highlightedId === anchor.id}
+            onSelect={onAnchorSelect}
           />
         ))}
 
