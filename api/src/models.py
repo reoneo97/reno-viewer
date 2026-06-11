@@ -39,7 +39,11 @@ class Project(SQLModel, table=True):
 
     anchors: List["Anchor"] = Relationship(
         back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "passive_deletes": True},
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "passive_deletes": True,
+            "order_by": "Anchor.created_at",  # stable ordering across refreshes
+        },
     )
 
 

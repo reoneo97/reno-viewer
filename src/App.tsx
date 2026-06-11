@@ -14,6 +14,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { ExportMenu } from './components/ExportMenu'
 import { UserMenu } from './components/UserMenu'
 import { HelpModal, hasSeenTutorial } from './components/HelpModal'
+import { QRCodeCanvas } from 'qrcode.react'
 import { ToastHost, toast } from './components/Toast'
 import { ConfirmHost } from './components/ConfirmDialog'
 import { useEscapeKey } from './hooks/useEscapeKey'
@@ -270,6 +271,7 @@ export default function App() {
             <div className="modal-body">
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
                 Anyone with this link can view the floor plan — no login required.
+                The page is live: it always shows the latest version of the project.
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input className="text-input" value={shareUrl} readOnly style={{ flex: 1 }} />
@@ -282,6 +284,10 @@ export default function App() {
                 >
                   Copy
                 </button>
+              </div>
+              <div className="share-qr">
+                <QRCodeCanvas value={shareUrl} size={140} marginSize={2} />
+                <span className="share-qr-hint">Scan to open on a phone</span>
               </div>
             </div>
           </div>

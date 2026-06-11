@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,10 +8,10 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .auth import require_auth, router as auth_router, seed_admin, users_router
-from .db import create_tables
+from .db import create_tables, get_session
 from .observability import install_logging
 from .routers import projects, anchors, candidates, snapshots
-from . import storage
+from .routers.snapshots import render_share_page
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
@@ -49,13 +50,17 @@ def health():
 
 
 @app.get("/snapshots/{snapshot_id}", include_in_schema=False)
-def get_snapshot(snapshot_id: str):
-    """Public — no auth required. Serves a shared snapshot HTML page."""
-    key = f"snapshots/{snapshot_id}.html"
-    html = storage.download(key)
+def get_snapshot(snapshot_id: str, session=Depends(get_session)):
+    """Public — no auth required. Renders the share page live from the
+    database, so the link always shows the project's current state."""
+    try:
+        project_id = UUID(snapshot_id)
+    except ValueError:
+        raise HTTPException(404, "Snapshot not found")
+    html = render_share_page(project_id, session)
     if html is None:
         raise HTTPException(404, "Snapshot not found")
-    return HTMLResponse(content=html.decode())
+    return HTMLResponse(content=html)
 
 
 # Serve built frontend — must be last so API routes take precedence

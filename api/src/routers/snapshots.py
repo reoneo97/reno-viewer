@@ -25,7 +25,50 @@ def _key_to_data_url(key: str) -> str:
     return f"data:{mime};base64,{base64.b64encode(data).decode()}"
 
 
-def _project_to_snapshot_data(project: Project, session: Session) -> dict:
+def _price_of(value: str | None) -> float:
+    try:
+        n = float(value or "")
+        return n if n > 0 else 0.0
+    except ValueError:
+        return 0.0
+
+
+def _compute_budget(anchors_data: list[dict]) -> dict:
+    """Per-category committed (chosen) vs all-options totals for the share page."""
+    lines: dict[str, dict] = {}
+    undecided = 0
+    for a in anchors_data:
+        priced = [c for c in a["candidates"] if _price_of(c["price"]) > 0]
+        if not priced:
+            continue
+        if not any(c["chosen"] for c in a["candidates"]):
+            undecided += 1
+        line = lines.setdefault(a["category"] or "Uncategorised", {"total": 0.0, "chosen": 0.0})
+        for c in priced:
+            line["total"] += _price_of(c["price"])
+            if c["chosen"]:
+                line["chosen"] += _price_of(c["price"])
+    ordered = sorted(
+        ({"category": k, **v} for k, v in lines.items()),
+        key=lambda l: -l["total"],
+    )
+    return {
+        "lines": ordered,
+        "total": sum(l["total"] for l in ordered),
+        "chosen": sum(l["chosen"] for l in ordered),
+        "undecided": undecided,
+    }
+
+
+def _project_to_snapshot_data(project: Project, session: Session, inline: bool) -> dict:
+    """Build the share-page payload.
+
+    `inline=True` embeds every image as a base64 data URL (self-contained file
+    for downloads); `inline=False` uses presigned R2 URLs, keeping the live
+    share page small and fast.
+    """
+    to_url = _key_to_data_url if inline else storage.presigned_url
+
     link_rows = session.exec(
         select(AnchorCandidate).where(
             AnchorCandidate.anchor_id.in_([a.id for a in project.anchors])  # type: ignore[attr-defined]
@@ -33,33 +76,36 @@ def _project_to_snapshot_data(project: Project, session: Session) -> dict:
     ).all() if project.anchors else []
     chosen_set = {(r.anchor_id, r.candidate_id) for r in link_rows if r.status == "chosen"}
 
+    anchors_data = [
+        {
+            "id": str(a.id),
+            "x": a.x,
+            "y": a.y,
+            "label": a.label,
+            "category": a.category or "",
+            "candidates": [
+                {
+                    "id": str(c.id),
+                    "name": c.name,
+                    "urls": [to_url(p.image_key) for p in c.photos if p.image_key],
+                    "description": c.description or "",
+                    "width": c.width or "",
+                    "height": c.height or "",
+                    "depth": c.depth or "",
+                    "price": c.price or "",
+                    "link": c.link or "",
+                    "chosen": (a.id, c.id) in chosen_set,
+                }
+                for c in a.candidates
+            ],
+        }
+        for a in project.anchors
+    ]
+
     return {
-        "floorPlan": _key_to_data_url(project.floor_plan_key) if project.floor_plan_key else "",
-        "anchors": [
-            {
-                "id": str(a.id),
-                "x": a.x,
-                "y": a.y,
-                "label": a.label,
-                "category": a.category or "",
-                "candidates": [
-                    {
-                        "id": str(c.id),
-                        "name": c.name,
-                        "urls": [_key_to_data_url(p.image_key) for p in c.photos if p.image_key],
-                        "description": c.description or "",
-                        "width": c.width or "",
-                        "height": c.height or "",
-                        "depth": c.depth or "",
-                        "price": c.price or "",
-                        "link": c.link or "",
-                        "chosen": (a.id, c.id) in chosen_set,
-                    }
-                    for c in a.candidates
-                ],
-            }
-            for a in project.anchors
-        ],
+        "floorPlan": to_url(project.floor_plan_key) if project.floor_plan_key else "",
+        "anchors": anchors_data,
+        "budget": _compute_budget(anchors_data),
     }
 
 
@@ -120,6 +166,19 @@ def _build_html(data: dict) -> str:
     .sidebar-candidate-link {{ font-size: .65rem; color: #4a90d9; text-decoration: none; }}
     .sidebar-candidate-link:hover {{ text-decoration: underline; }}
     .sidebar-empty {{ font-size: .75rem; color: #555; padding: 8px 12px; }}
+
+    /* ── Budget summary card ── */
+    .budget-card {{ border: 1px solid #2a2a4a; border-radius: 8px; background: #1e1e3a; padding: 12px; }}
+    .budget-card-title {{ font-size: .68rem; font-weight: 700; text-transform: uppercase;
+                          letter-spacing: .08em; color: #888; margin-bottom: 8px; }}
+    .budget-figures {{ display: flex; gap: 14px; margin-bottom: 8px; }}
+    .budget-figure-label {{ font-size: .62rem; color: #888; display: block; }}
+    .budget-figure-value {{ font-size: .95rem; font-weight: 700; color: #e0e0e0; font-variant-numeric: tabular-nums; }}
+    .budget-figure-value.chosen {{ color: #27ae60; }}
+    .budget-line {{ display: flex; justify-content: space-between; font-size: .7rem; color: #aaa; padding: 2px 0; }}
+    .budget-line-amounts {{ font-variant-numeric: tabular-nums; }}
+    .budget-line-chosen {{ color: #27ae60; font-weight: 600; }}
+    .budget-undecided {{ font-size: .65rem; color: #777; margin-top: 6px; }}
 
     /* ── Anchor pins ── */
     .anchor-wrapper {{ position: absolute; transform: translate(-50%, -50%); z-index: 20; cursor: pointer; }}
@@ -231,6 +290,59 @@ def _build_html(data: dict) -> str:
       isPanning = false;
       canvasContainer.style.cursor = 'grab';
     }});
+
+    // ── Budget summary card ──
+    var BUDGET = DATA.budget || {{ lines: [], total: 0, chosen: 0, undecided: 0 }};
+    function fmtMoney(n) {{
+      return '$' + n.toLocaleString(undefined, {{ minimumFractionDigits: 2, maximumFractionDigits: 2 }});
+    }}
+    if (BUDGET.lines.length > 0) {{
+      var card = document.createElement('div');
+      card.className = 'budget-card';
+      card.innerHTML = '<div class="budget-card-title">Budget</div>';
+
+      var figures = document.createElement('div');
+      figures.className = 'budget-figures';
+      [['Chosen', BUDGET.chosen, true], ['All options', BUDGET.total, false]].forEach(function(f) {{
+        var fig = document.createElement('div');
+        var lbl = document.createElement('span');
+        lbl.className = 'budget-figure-label';
+        lbl.textContent = f[0];
+        var val = document.createElement('span');
+        val.className = 'budget-figure-value' + (f[2] ? ' chosen' : '');
+        val.textContent = fmtMoney(f[1]);
+        fig.appendChild(lbl); fig.appendChild(val);
+        figures.appendChild(fig);
+      }});
+      card.appendChild(figures);
+
+      BUDGET.lines.forEach(function(l) {{
+        var row = document.createElement('div');
+        row.className = 'budget-line';
+        var cat = document.createElement('span');
+        cat.textContent = l.category;
+        var amounts = document.createElement('span');
+        amounts.className = 'budget-line-amounts';
+        if (l.chosen > 0) {{
+          var ch = document.createElement('span');
+          ch.className = 'budget-line-chosen';
+          ch.textContent = fmtMoney(l.chosen);
+          amounts.appendChild(ch);
+          amounts.appendChild(document.createTextNode(' / '));
+        }}
+        amounts.appendChild(document.createTextNode(fmtMoney(l.total)));
+        row.appendChild(cat); row.appendChild(amounts);
+        card.appendChild(row);
+      }});
+
+      if (BUDGET.undecided > 0) {{
+        var und = document.createElement('div');
+        und.className = 'budget-undecided';
+        und.textContent = BUDGET.undecided + ' spot' + (BUDGET.undecided !== 1 ? 's' : '') + ' still undecided';
+        card.appendChild(und);
+      }}
+      sidebar.appendChild(card);
+    }}
 
     // Build sidebar + anchor pins together
     var sidebarSections = {{}};
@@ -463,31 +575,37 @@ def _build_html(data: dict) -> str:
 </html>"""
 
 
+def render_share_page(project_id: uuid.UUID, session: Session) -> str | None:
+    """Render the public share page fresh from the database (used by the
+    public GET route in main.py). Images are presigned URLs, not inlined, so
+    the page is small and always shows the latest state of the project."""
+    project = session.get(Project, project_id)
+    if not project:
+        return None
+    return _build_html(_project_to_snapshot_data(project, session, inline=False))
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/projects/{project_id}/snapshot", status_code=201)
 def create_snapshot(project_id: uuid.UUID, session: Session = Depends(get_session)):
-    """Generate snapshot, upload to R2, return shareable URL."""
-    project = session.get(Project, project_id)
-    if not project:
+    """Return the shareable URL. The page itself renders live on each visit,
+    so there is nothing to generate or upload here any more — the link always
+    reflects the current state of the project."""
+    if not session.get(Project, project_id):
         raise HTTPException(404, "Project not found")
-
-    data = _project_to_snapshot_data(project, session)
-    html = _build_html(data)
-
-    storage.upload_bytes(html.encode(), f"snapshots/{project_id}.html", "text/html")
-
     return {"id": str(project_id), "url": f"/snapshots/{project_id}"}
 
 
 @router.get("/projects/{project_id}/snapshot/download")
 def download_snapshot(project_id: uuid.UUID, session: Session = Depends(get_session)):
-    """Generate snapshot and return as a file download."""
+    """Frozen, self-contained copy: every image inlined as base64 so the file
+    works offline and never changes after download."""
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
 
-    data = _project_to_snapshot_data(project, session)
+    data = _project_to_snapshot_data(project, session, inline=True)
     html = _build_html(data)
     filename = f"{project.name.replace(' ', '_')}.html"
 
