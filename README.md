@@ -54,3 +54,26 @@ docker compose up -d --build
 ```
 
 Pushes to `main` auto-deploy via GitHub Actions (requires `DROPLET_HOST`, `DROPLET_USER`, `DROPLET_SSH_KEY` secrets).
+
+### Nginx + SSL (one-time, on the server)
+
+```bash
+# reverse proxy in front of the app container on :8000
+cp ~/reno-viewer/nginx.conf /etc/nginx/conf.d/reno-viewer.conf
+sed -i 's/YOUR_DOMAIN_OR_IP/yourdomain.com/' /etc/nginx/conf.d/reno-viewer.conf
+nginx -t && systemctl reload nginx
+
+# obtain and install a Let's Encrypt certificate (domain must resolve to the Droplet)
+certbot --nginx -d yourdomain.com
+```
+
+### Observability
+
+Each request is logged as a JSON line to stdout. Tail or filter them with:
+
+```bash
+docker compose logs -f app                     # live tail
+docker compose logs app | grep '"status": 5'   # find errors
+```
+
+Host metrics (CPU/memory/disk) are available in the Digital Ocean dashboard via the `do-agent`.

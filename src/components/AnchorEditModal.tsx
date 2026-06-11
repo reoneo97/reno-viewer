@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Anchor, CandidateImage, CandidateStatus } from '../types'
-import { ANCHOR_CATEGORIES } from '../types'
-import { addCandidateImage, createCandidate, deleteCandidate, removeFromAnchor, deleteAnchor, updateAnchor, updateCandidate, duplicateAnchor } from '../api'
+import { ANCHOR_CATEGORIES, formatDims, mapApiCandidate } from '../types'
+import { addCandidateImage, createCandidate, deleteCandidate, removeFromAnchor, deleteAnchor, updateAnchor, updateCandidate, duplicateAnchor, listAvailableCandidates, linkCandidate, setCandidateStatus as apiSetCandidateStatus } from '../api'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { confirmDialog } from './ConfirmDialog'
 import { toast } from './Toast'
@@ -40,7 +40,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 // Edits autosave on blur (and on discrete actions like status changes), so
 // there is no Cancel/Save pair — just Done. The footer reports save state.
 export function AnchorEditModal({ anchor, onSave }: Props) {
-  const [mode, setMode] = useState<'list' | 'add'>('list')
+  const [mode, setMode] = useState<'list' | 'add' | 'pick'>('list')
   const [label, setLabel] = useState(anchor.label)
   const [category, setCategory] = useState(anchor.category)
   const [notes, setNotes] = useState(anchor.notes)
@@ -54,6 +54,12 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
   const addFileInputRef = useRef<HTMLInputElement>(null)
   const editFileInputRef = useRef<HTMLInputElement>(null)
   const [editImageTarget, setEditImageTarget] = useState<string | null>(null) // candidate id
+
+  // Reuse picker state
+  const [available, setAvailable] = useState<CandidateImage[]>([])
+  const [loadingAvailable, setLoadingAvailable] = useState(false)
+  const [pickSearch, setPickSearch] = useState('')
+  const [linkingId, setLinkingId] = useState<string | null>(null)
 
   // Track a save request: footer indicator reflects whether anything is
   // still in flight, and Done awaits the whole set before refreshing.
@@ -86,7 +92,7 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
       name: c.name, description: c.description || undefined,
       width: c.width || undefined, height: c.height || undefined,
       depth: c.depth || undefined, price: c.price || undefined,
-      link: c.link || undefined, status: c.status,
+      link: c.link || undefined,
     }))
 
   const saveCandidateById = (id: string) => {
@@ -94,11 +100,16 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
     if (c) void saveCandidate(c)
   }
 
+  // Status is per anchor↔candidate link (a shared candidate can be chosen
+  // here and rejected elsewhere), so it saves via its own endpoint.
   const setCandidateStatus = (id: string, status: CandidateStatus) => {
-    const c = candidates.find((c) => c.id === id)
-    if (!c) return
-    updateCandidateField(id, { status })
-    void saveCandidate({ ...c, status })
+    setCandidates((prev) => prev.map((c) => {
+      if (c.id === id) return { ...c, status }
+      // 'chosen' is radio-style; mirror the server-side clear locally.
+      if (status === 'chosen' && c.status === 'chosen') return { ...c, status: '' as CandidateStatus }
+      return c
+    }))
+    void track(apiSetCandidateStatus(anchor.id, id, status))
   }
 
   // ── Done / close ────────────────────────────────────────────────────────────
@@ -117,8 +128,43 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
     }
   }
 
-  // Esc: in add mode go back (with discard guard), otherwise finish up.
-  useEscapeKey(() => { if (mode === 'add') void handleBack(); else void handleDone() })
+  // Esc: in a sub-view go back (with discard guard for add), otherwise finish up.
+  useEscapeKey(() => {
+    if (mode === 'add') void handleBack()
+    else if (mode === 'pick') setMode('list')
+    else void handleDone()
+  })
+
+  // ── Reuse an existing candidate ─────────────────────────────────────────────
+
+  const openPicker = async () => {
+    setMode('pick')
+    setPickSearch('')
+    setLoadingAvailable(true)
+    try {
+      const items = await listAvailableCandidates(anchor.id)
+      setAvailable(items.map((c) => mapApiCandidate(c, anchor.id)))
+    } catch {
+      toast.error('Failed to load existing candidates')
+    } finally {
+      setLoadingAvailable(false)
+    }
+  }
+
+  const handleLink = async (c: CandidateImage) => {
+    if (linkingId) return
+    setLinkingId(c.id)
+    try {
+      const saved = await linkCandidate(anchor.id, c.id)
+      setCandidates((prev) => [...prev, mapApiCandidate(saved, anchor.id)])
+      setAvailable((prev) => prev.filter((a) => a.id !== c.id))
+      toast.success(`Linked "${saved.name}"`)
+    } catch {
+      toast.error('Failed to link candidate')
+    } finally {
+      setLinkingId(null)
+    }
+  }
 
   const setAddField = (patch: Partial<AddForm>) =>
     setAddForm((prev) => ({ ...prev, ...patch }))
@@ -191,13 +237,7 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
         link: addForm.link,
       })
       addForm.images.forEach((img) => URL.revokeObjectURL(img.previewUrl))
-      setCandidates((prev) => [...prev, {
-        id: saved.id, name: saved.name, urls: saved.image_urls ?? [],
-        description: saved.description ?? '',
-        width: saved.width ?? '', height: saved.height ?? '',
-        depth: saved.depth ?? '', price: saved.price ?? '', link: saved.link ?? '',
-        status: '', sharedWith: [],
-      }])
+      setCandidates((prev) => [...prev, mapApiCandidate(saved, anchor.id)])
       setAddForm(emptyAddForm)
       setMode('list')
       toast.success('Candidate added')
@@ -276,6 +316,78 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
   const handleBackdrop = (e: React.MouseEvent) => {
     e.stopPropagation()
     // clicking outside does nothing — use Done/✕ to close
+  }
+
+  // ── Reuse existing candidate view ───────────────────────────────────────────
+
+  if (mode === 'pick') {
+    const q = pickSearch.trim().toLowerCase()
+    const filtered = q
+      ? available.filter((c) =>
+          c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))
+      : available
+    return (
+      <div className="modal-backdrop" onClick={handleBackdrop}>
+        <div className="modal">
+          <div className="modal-header">
+            <button className="btn-back" onClick={() => setMode('list')}>← Back</button>
+            <h2>Reuse Candidate</h2>
+          </div>
+
+          <div className="modal-body">
+            <input
+              className="text-input"
+              value={pickSearch}
+              onChange={(e) => setPickSearch(e.target.value)}
+              placeholder="Search candidates in this project…"
+              autoFocus
+            />
+
+            {loadingAvailable ? (
+              <p className="view-modal-empty" style={{ marginTop: 16 }}>Loading…</p>
+            ) : filtered.length === 0 ? (
+              <p className="view-modal-empty" style={{ marginTop: 16 }}>
+                {available.length === 0 ? 'No other candidates in this project to reuse.' : 'No matches.'}
+              </p>
+            ) : (
+              <div className="candidate-list" style={{ marginTop: 12 }}>
+                {filtered.map((c) => {
+                  const dims = formatDims(c.width, c.height, c.depth)
+                  const summary = [dims, c.price ? `$${c.price}` : ''].filter(Boolean).join(' · ') || 'No details'
+                  return (
+                    <div key={c.id} className="pick-candidate-row">
+                      {c.urls[0]
+                        ? <img src={c.urls[0]} alt={c.name} className="candidate-collapsed-thumb" />
+                        : <div className="candidate-collapsed-thumb" style={{ background: 'var(--surface-3)' }} />
+                      }
+                      <div className="candidate-collapsed-info">
+                        <span className="candidate-collapsed-name">{c.name || 'Untitled'}</span>
+                        <span className="candidate-collapsed-meta">{summary}</span>
+                        {c.sharedWith.length > 0 && (
+                          <span className="candidate-collapsed-desc">In: {c.sharedWith.map((a) => a.label).join(', ')}</span>
+                        )}
+                      </div>
+                      <button
+                        className="btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '5px 12px' }}
+                        onClick={() => handleLink(c)}
+                        disabled={linkingId === c.id}
+                      >
+                        {linkingId === c.id ? '…' : '+ Link'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="modal-footer" style={{ justifyContent: 'flex-end' }}>
+            <button className="btn-primary" onClick={() => setMode('list')}>Done</button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // ── Add candidate view ──────────────────────────────────────────────────────
@@ -456,7 +568,12 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
 
           <div className="candidates-section-header">
             <label className="field-label">Candidates ({candidates.length})</label>
-            <button className="btn-add-candidate" onClick={() => setMode('add')}>＋</button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="btn-reuse-candidate" onClick={openPicker} title="Reuse a candidate from elsewhere in this project">
+                ⟳ Reuse
+              </button>
+              <button className="btn-add-candidate" onClick={() => setMode('add')} title="Add a new candidate">＋</button>
+            </div>
           </div>
 
           <div

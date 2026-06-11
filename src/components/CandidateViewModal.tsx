@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Anchor, CandidateImage, CandidateStatus } from '../types'
 import { anchorColor } from '../types'
-import { updateCandidate } from '../api'
+import { setCandidateStatus } from '../api'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { toast } from './Toast'
 import { Lightbox } from './Lightbox'
@@ -12,9 +12,10 @@ interface Props {
   anchor: Anchor
   onRefresh?: () => void
   onClose: () => void
+  onEdit?: () => void
 }
 
-export function CandidateViewModal({ anchor, onRefresh, onClose }: Props) {
+export function CandidateViewModal({ anchor, onRefresh, onClose, onEdit }: Props) {
   const color = anchorColor(anchor.category)
   const [lightbox, setLightbox] = useState<CandidateImage | null>(null)
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
@@ -30,9 +31,18 @@ export function CandidateViewModal({ anchor, onRefresh, onClose }: Props) {
   )
 
   const setStatus = async (candidateId: string, status: CandidateStatus) => {
-    setStatusOverrides((prev) => ({ ...prev, [candidateId]: status }))
+    setStatusOverrides((prev) => {
+      const next = { ...prev, [candidateId]: status }
+      // 'chosen' is radio-style per anchor — mirror the server-side clear.
+      if (status === 'chosen') {
+        for (const c of anchor.candidates) {
+          if (c.id !== candidateId && (next[c.id] ?? c.status) === 'chosen') next[c.id] = ''
+        }
+      }
+      return next
+    })
     try {
-      await updateCandidate(candidateId, { status })
+      await setCandidateStatus(anchor.id, candidateId, status)
       onRefresh?.()
     } catch {
       toast.error('Failed to update status')
@@ -75,6 +85,11 @@ export function CandidateViewModal({ anchor, onRefresh, onClose }: Props) {
               <span className="popover-category">{anchor.category}</span>
             )}
           </div>
+          {onEdit && (
+            <button className="btn-secondary" style={{ fontSize: '0.78rem', padding: '5px 12px' }} onClick={onEdit}>
+              Edit
+            </button>
+          )}
           <button className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
         </div>
 

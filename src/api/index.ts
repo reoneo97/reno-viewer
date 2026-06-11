@@ -1,11 +1,29 @@
 import { http, getToken } from './client'
-import type { ApiAnchor, ApiCandidate, ApiProject } from '../types'
+import type { ApiAnchor, ApiCandidate, ApiProject, ApiUser } from '../types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export async function login(username: string, password: string): Promise<string> {
+export async function login(username: string, password: string): Promise<{ token: string; username: string }> {
   const data = await http.post('/auth/login', { username, password })
-  return data.access_token
+  return { token: data.access_token, username: data.username ?? username }
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+
+export function listUsers(): Promise<ApiUser[]> {
+  return http.get('/users')
+}
+
+export function createUser(data: { username: string; password: string; display_name?: string }): Promise<ApiUser> {
+  return http.post('/users', data)
+}
+
+export function deleteUser(userId: string): Promise<null> {
+  return http.delete(`/users/${userId}`)
+}
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<null> {
+  return http.post('/users/me/password', { current_password: currentPassword, new_password: newPassword })
 }
 
 // ── Projects ──────────────────────────────────────────────────────────────────
@@ -110,13 +128,33 @@ export function deleteCandidateImage(photoId: string): Promise<null> {
 
 export function updateCandidate(
   candidateId: string,
-  data: { name?: string; description?: string; width?: string; height?: string; depth?: string; price?: string; link?: string; status?: string },
+  data: { name?: string; description?: string; width?: string; height?: string; depth?: string; price?: string; link?: string },
 ): Promise<ApiCandidate> {
   return http.patch(`/candidates/${candidateId}`, data)
 }
 
 export function removeFromAnchor(anchorId: string, candidateId: string): Promise<null> {
   return http.delete(`/anchors/${anchorId}/candidates/${candidateId}`)
+}
+
+// ── Candidate reuse + decision status ───────────────────────────────────────────
+
+export function listAvailableCandidates(anchorId: string): Promise<ApiCandidate[]> {
+  return http.get(`/anchors/${anchorId}/available-candidates`)
+}
+
+export function linkCandidate(anchorId: string, candidateId: string): Promise<ApiCandidate> {
+  return http.post(`/anchors/${anchorId}/candidates/${candidateId}`, {})
+}
+
+// Status lives on the anchor↔candidate link ('' | shortlisted | chosen | rejected);
+// setting 'chosen' clears any other chosen candidate on the same anchor.
+export function setCandidateStatus(
+  anchorId: string,
+  candidateId: string,
+  status: string,
+): Promise<ApiCandidate> {
+  return http.patch(`/anchors/${anchorId}/candidates/${candidateId}/status`, { status })
 }
 
 export function deleteCandidate(candidateId: string): Promise<null> {

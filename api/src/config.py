@@ -11,8 +11,13 @@ class Settings(BaseSettings):
     s3_bucket: str = "reno-viewer"
     s3_presign_expires: int = 86400         # presigned URL lifetime in seconds (default 24h)
 
+    # Seed credentials for the FIRST account only (used when the users table
+    # is empty). Provide the password either as plaintext (AUTH_PASSWORD) or
+    # as a base64-encoded bcrypt hash (AUTH_PASSWORD_HASH — base64 keeps $
+    # signs out of env files). After seeding, accounts live in the DB.
     auth_username: str = "reo"
-    auth_password_hash: str  # base64-encoded bcrypt hash — no $ signs, safe in env files
+    auth_password: str = ""
+    auth_password_hash: str = ""
     jwt_secret: str  # random hex string — set in .env
     jwt_expire_hours: int = 72
 

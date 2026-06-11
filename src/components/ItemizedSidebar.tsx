@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Anchor } from '../types'
-import { anchorColor } from '../types'
+import { anchorColor, formatDims } from '../types'
 import { StatusBadge } from './StatusBadge'
 
 interface Props {
@@ -105,7 +105,7 @@ export function ItemizedSidebar({ anchors, onLocate, selectedAnchorId }: Props) 
               {anchor.candidates.length > 0 ? (
                 <div className="app-sidebar-candidates">
                   {anchor.candidates.map((c) => {
-                    const dims = [c.width, c.height, c.depth].filter(Boolean).join(' × ') || '—'
+                    const dims = formatDims(c.width, c.height, c.depth) || '—'
                     const price = c.price ? `$${c.price}` : '—'
                     return (
                       <div key={c.id} className="app-sidebar-candidate">

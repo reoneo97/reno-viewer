@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Anchor, CandidateImage, CandidateStatus } from '../types'
-import { anchorColor } from '../types'
-import { updateCandidate } from '../api'
+import { anchorColor, formatDims } from '../types'
+import { setCandidateStatus } from '../api'
 import { toast } from './Toast'
 import { AnchorEditModal } from './AnchorEditModal'
 import { Lightbox } from './Lightbox'
@@ -38,11 +38,13 @@ export function ItemsTable({ anchors, onRefresh }: Props) {
   const [lightbox, setLightbox] = useState<CandidateImage | null>(null)
   const [statusOverrides, setStatusOverrides] = useState<Record<string, CandidateStatus>>({})
 
+  // Overrides are keyed by anchor:candidate pair — status is per link, so a
+  // shared candidate can hold different decisions on different anchors.
   const rows: Row[] = anchors.flatMap((anchor) =>
-    anchor.candidates.map((c) => ({
-      anchor,
-      candidate: statusOverrides[c.id] !== undefined ? { ...c, status: statusOverrides[c.id] } : c,
-    })),
+    anchor.candidates.map((c) => {
+      const override = statusOverrides[`${anchor.id}:${c.id}`]
+      return { anchor, candidate: override !== undefined ? { ...c, status: override } : c }
+    }),
   )
 
   const q = query.trim().toLowerCase()
@@ -71,16 +73,17 @@ export function ItemsTable({ anchors, onRefresh }: Props) {
     else { setSortKey(key); setSortAsc(true) }
   }
 
-  const setStatus = async (candidateId: string, status: CandidateStatus) => {
-    setStatusOverrides((prev) => ({ ...prev, [candidateId]: status }))
+  const setStatus = async (anchorId: string, candidateId: string, status: CandidateStatus) => {
+    const key = `${anchorId}:${candidateId}`
+    setStatusOverrides((prev) => ({ ...prev, [key]: status }))
     try {
-      await updateCandidate(candidateId, { status })
+      await setCandidateStatus(anchorId, candidateId, status)
       onRefresh()
     } catch {
       toast.error('Failed to update status')
       setStatusOverrides((prev) => {
         const next = { ...prev }
-        delete next[candidateId]
+        delete next[key]
         return next
       })
     }
@@ -139,7 +142,7 @@ export function ItemsTable({ anchors, onRefresh }: Props) {
             </thead>
             <tbody>
               {sorted.map(({ anchor, candidate: c }) => {
-                const dims = [c.width, c.height, c.depth].filter(Boolean).join(' × ') || '—'
+                const dims = formatDims(c.width, c.height, c.depth) || '—'
                 return (
                   <tr key={`${anchor.id}-${c.id}`} className={`budget-row ${c.status === 'rejected' ? 'row-rejected' : ''}`}>
                     <td className="budget-td items-table-thumb-cell">
@@ -169,7 +172,7 @@ export function ItemsTable({ anchors, onRefresh }: Props) {
                       {priceOf(c) !== null ? `$${c.price}` : '—'}
                     </td>
                     <td className="budget-td">
-                      <StatusPicker status={c.status} onChange={(s) => setStatus(c.id, s)} />
+                      <StatusPicker status={c.status} onChange={(s) => setStatus(anchor.id, c.id, s)} />
                     </td>
                     <td className="budget-td">
                       <button className="btn-secondary btn-compact" onClick={() => setEditAnchor(anchor)}>

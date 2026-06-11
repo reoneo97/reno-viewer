@@ -13,6 +13,19 @@ from sqlmodel import Field, Relationship, SQLModel
 
 # ── Table models ──────────────────────────────────────────────────────────────
 
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+
+    id: Optional[uuid.UUID] = Field(
+        default_factory=uuid.uuid4,
+        sa_column=Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
+    )
+    username: str = Field(unique=True, index=True)
+    password_hash: str  # bcrypt — never the raw password
+    display_name: Optional[str] = None
+    created_at: datetime = Field(default_factory=_now)
+
+
 class Project(SQLModel, table=True):
     __tablename__ = "projects"
 
@@ -26,7 +39,11 @@ class Project(SQLModel, table=True):
 
     anchors: List["Anchor"] = Relationship(
         back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "passive_deletes": True},
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "passive_deletes": True,
+            "order_by": "Anchor.created_at",  # stable ordering across refreshes
+        },
     )
 
 
@@ -49,6 +66,10 @@ class AnchorCandidate(SQLModel, table=True):
             primary_key=True,
         ),
     )
+    # Decision for this candidate at this anchor:
+    # '' (undecided) | 'shortlisted' | 'chosen' | 'rejected'.
+    # 'chosen' is radio-style — at most one per anchor.
+    status: str = ""
 
 
 class Anchor(SQLModel, table=True):
@@ -134,6 +155,24 @@ class CandidatePhoto(SQLModel, table=True):
 
 # ── Request schemas ───────────────────────────────────────────────────────────
 
+class UserCreate(SQLModel):
+    username: str
+    password: str
+    display_name: Optional[str] = None
+
+
+class UserRead(SQLModel):
+    id: uuid.UUID
+    username: str
+    display_name: Optional[str] = None
+    created_at: datetime
+
+
+class PasswordChange(SQLModel):
+    current_password: str
+    new_password: str
+
+
 class ProjectCreate(SQLModel):
     name: str
 
@@ -187,6 +226,7 @@ class CandidateRead(SQLModel):
     link: Optional[str] = None
     created_at: datetime
     anchors: List[AnchorRef] = []
+    status: str = ""  # decision for the anchor this candidate was read under
 
 
 class AnchorRead(SQLModel):

@@ -16,20 +16,15 @@ function isTheme(v: unknown): v is Theme {
   return v === 'light' || v === 'dark' || v === 'warm'
 }
 
-function systemPrefersDark(): boolean {
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
-}
-
 export function getStoredTheme(): Theme | null {
   const v = localStorage.getItem(STORAGE_KEY)
   return isTheme(v) ? v : null
 }
 
 export function resolveInitialTheme(): Theme {
-  // Warm terracotta is the default light experience — it suits the
-  // interior-design subject matter. Users who prefer the neutral light
-  // theme can cycle to it; their choice is then persisted.
-  return getStoredTheme() ?? (systemPrefersDark() ? 'dark' : 'warm')
+  // Warm terracotta is the default — it suits the interior-design subject
+  // matter. Users can cycle to dark/light; their choice is then persisted.
+  return getStoredTheme() ?? 'warm'
 }
 
 export function nextTheme(theme: Theme): Theme {

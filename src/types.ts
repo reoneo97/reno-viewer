@@ -2,6 +2,7 @@ export const ANCHOR_CATEGORIES = [
   'Furniture',
   'Lights and Fans',
   'Bathroom',
+  'Kitchen',
   'Appliances',
   'Others',
 ]
@@ -12,6 +13,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Furniture':      '#b5654a',
   'Lights and Fans':'#c99a3c',
   'Bathroom':       '#5f8d83',
+  'Kitchen':        '#8a6d8f',
   'Appliances':     '#6e82a3',
   'Others':         '#8d8678',
 }
@@ -22,11 +24,20 @@ export function anchorColor(category: string): string {
   return CATEGORY_COLORS[category] ?? DEFAULT_ANCHOR_COLOR
 }
 
+export function formatDims(w: string, h: string, d: string): string {
+  const parts = [
+    w ? `W ${w}` : '',
+    h ? `H ${h}` : '',
+    d ? `D ${d}` : '',
+  ].filter(Boolean)
+  return parts.join(' × ')
+}
+
 // ── Frontend component types ──────────────────────────────────────────────────
 
-// Decision state for a candidate. Empty string = no decision yet.
-// NOTE: persisting status requires the API to accept/return a `status`
-// field on candidates; until then it is kept optimistically in client state.
+// Decision state for a candidate, scoped to the anchor it was read under
+// (a shared candidate can be chosen in one spot and rejected in another).
+// Persisted on the anchor↔candidate link; '' = no decision yet.
 export type CandidateStatus = '' | 'shortlisted' | 'chosen' | 'rejected'
 
 export const STATUS_LABELS: Record<Exclude<CandidateStatus, ''>, string> = {
@@ -54,7 +65,7 @@ export interface CandidateImage {
   depth: string
   price: string
   link: string
-  status: CandidateStatus
+  status: CandidateStatus  // decision for the anchor this candidate was read under
   sharedWith: AnchorRef[]  // other anchors this candidate also belongs to
 }
 
@@ -105,7 +116,30 @@ export interface ApiProject {
   anchors: ApiAnchor[]
 }
 
+export interface ApiUser {
+  id: string
+  username: string
+  display_name: string | null
+  created_at: string
+}
+
 // ── Mappers ───────────────────────────────────────────────────────────────────
+
+export function mapApiCandidate(c: ApiCandidate, anchorId: string): CandidateImage {
+  return {
+    id: c.id,
+    name: c.name,
+    urls: c.image_urls ?? [],
+    description: c.description ?? '',
+    width: c.width ?? '',
+    height: c.height ?? '',
+    depth: c.depth ?? '',
+    price: c.price ?? '',
+    link: c.link ?? '',
+    status: isCandidateStatus(c.status) ? c.status : '',
+    sharedWith: (c.anchors ?? []).filter((ref) => ref.id !== anchorId),
+  }
+}
 
 export function mapApiAnchor(a: ApiAnchor): Anchor {
   return {
@@ -115,18 +149,6 @@ export function mapApiAnchor(a: ApiAnchor): Anchor {
     label: a.label,
     category: a.category ?? '',
     notes: a.notes ?? '',
-    candidates: a.candidates.map((c) => ({
-      id: c.id,
-      name: c.name,
-      urls: c.image_urls ?? [],
-      description: c.description ?? '',
-      width: c.width ?? '',
-      height: c.height ?? '',
-      depth: c.depth ?? '',
-      price: c.price ?? '',
-      link: c.link ?? '',
-      status: isCandidateStatus(c.status) ? c.status : '',
-      sharedWith: (c.anchors ?? []).filter((ref) => ref.id !== a.id),
-    })),
+    candidates: a.candidates.map((c) => mapApiCandidate(c, a.id)),
   }
 }
