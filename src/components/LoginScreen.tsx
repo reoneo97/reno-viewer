@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { login } from '../api'
-import { setToken } from '../api/client'
+import { setToken, setUsername as persistUsername } from '../api/client'
 import { ThemeToggle } from './ThemeToggle'
 
 interface Props {
@@ -18,8 +18,9 @@ export function LoginScreen({ onLogin }: Props) {
     setError('')
     setLoading(true)
     try {
-      const token = await login(username, password)
-      setToken(token)
+      const result = await login(username, password)
+      setToken(result.token)
+      persistUsername(result.username)
       onLogin()
     } catch {
       setError('Invalid username or password')

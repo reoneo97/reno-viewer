@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from .auth import require_auth, router as auth_router
+from .auth import require_auth, router as auth_router, seed_admin, users_router
 from .db import create_tables
 from .observability import install_logging
 from .routers import projects, anchors, candidates, snapshots
@@ -18,6 +18,7 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
+    seed_admin()
     yield
 
 
@@ -35,6 +36,7 @@ app.add_middleware(
 app.include_router(auth_router)
 
 _protected = {"dependencies": [Depends(require_auth)]}
+app.include_router(users_router, **_protected)
 app.include_router(projects.router, **_protected)
 app.include_router(anchors.router, **_protected)
 app.include_router(candidates.router, **_protected)

@@ -10,6 +10,15 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   localStorage.removeItem('token')
+  localStorage.removeItem('username')
+}
+
+export function getUsername(): string {
+  return localStorage.getItem('username') ?? ''
+}
+
+export function setUsername(username: string): void {
+  localStorage.setItem('username', username)
 }
 
 async function request(method: string, path: string, body?: unknown, isForm = false) {

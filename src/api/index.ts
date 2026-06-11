@@ -1,11 +1,29 @@
 import { http, getToken } from './client'
-import type { ApiAnchor, ApiCandidate, ApiProject } from '../types'
+import type { ApiAnchor, ApiCandidate, ApiProject, ApiUser } from '../types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export async function login(username: string, password: string): Promise<string> {
+export async function login(username: string, password: string): Promise<{ token: string; username: string }> {
   const data = await http.post('/auth/login', { username, password })
-  return data.access_token
+  return { token: data.access_token, username: data.username ?? username }
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+
+export function listUsers(): Promise<ApiUser[]> {
+  return http.get('/users')
+}
+
+export function createUser(data: { username: string; password: string; display_name?: string }): Promise<ApiUser> {
+  return http.post('/users', data)
+}
+
+export function deleteUser(userId: string): Promise<null> {
+  return http.delete(`/users/${userId}`)
+}
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<null> {
+  return http.post('/users/me/password', { current_password: currentPassword, new_password: newPassword })
 }
 
 // ── Projects ──────────────────────────────────────────────────────────────────

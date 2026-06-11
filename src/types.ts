@@ -116,6 +116,13 @@ export interface ApiProject {
   anchors: ApiAnchor[]
 }
 
+export interface ApiUser {
+  id: string
+  username: string
+  display_name: string | null
+  created_at: string
+}
+
 // ── Mappers ───────────────────────────────────────────────────────────────────
 
 export function mapApiCandidate(c: ApiCandidate, anchorId: string): CandidateImage {

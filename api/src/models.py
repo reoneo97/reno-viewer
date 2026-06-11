@@ -13,6 +13,19 @@ from sqlmodel import Field, Relationship, SQLModel
 
 # ── Table models ──────────────────────────────────────────────────────────────
 
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+
+    id: Optional[uuid.UUID] = Field(
+        default_factory=uuid.uuid4,
+        sa_column=Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
+    )
+    username: str = Field(unique=True, index=True)
+    password_hash: str  # bcrypt — never the raw password
+    display_name: Optional[str] = None
+    created_at: datetime = Field(default_factory=_now)
+
+
 class Project(SQLModel, table=True):
     __tablename__ = "projects"
 
@@ -137,6 +150,24 @@ class CandidatePhoto(SQLModel, table=True):
 
 
 # ── Request schemas ───────────────────────────────────────────────────────────
+
+class UserCreate(SQLModel):
+    username: str
+    password: str
+    display_name: Optional[str] = None
+
+
+class UserRead(SQLModel):
+    id: uuid.UUID
+    username: str
+    display_name: Optional[str] = None
+    created_at: datetime
+
+
+class PasswordChange(SQLModel):
+    current_password: str
+    new_password: str
+
 
 class ProjectCreate(SQLModel):
     name: str
