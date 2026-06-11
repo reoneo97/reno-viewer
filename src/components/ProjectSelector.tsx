@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ApiProject } from '../types'
 import { createProject, deleteProject } from '../api'
 import { ThemeToggle } from './ThemeToggle'
+import { UserMenu } from './UserMenu'
 import { confirmDialog } from './ConfirmDialog'
 import { toast } from './Toast'
 
@@ -57,9 +58,7 @@ export function ProjectSelector({ projects, onSelect, onProjectsChange, onLogout
             + New Project
           </button>
           <ThemeToggle />
-          <button className="btn-secondary" onClick={onLogout}>
-            Sign out
-          </button>
+          <UserMenu onLogout={onLogout} />
         </div>
       </header>
 

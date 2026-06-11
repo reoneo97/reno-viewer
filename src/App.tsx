@@ -12,6 +12,8 @@ import { LoginScreen } from './components/LoginScreen'
 import { ProjectSelector } from './components/ProjectSelector'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ExportMenu } from './components/ExportMenu'
+import { UserMenu } from './components/UserMenu'
+import { HelpModal, hasSeenTutorial } from './components/HelpModal'
 import { ToastHost, toast } from './components/Toast'
 import { ConfirmHost } from './components/ConfirmDialog'
 import { useEscapeKey } from './hooks/useEscapeKey'
@@ -35,6 +37,8 @@ export default function App() {
   // "this pin was opened" echoes.
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null)
   const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null)
+  // Auto-open the tutorial the first time someone lands in a project.
+  const [showTutorial, setShowTutorial] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEscapeKey(() => setShareUrl(null), shareUrl !== null)
@@ -64,6 +68,7 @@ export default function App() {
       setProject(full)
       setViewTab('plan')
       setPhase('view')
+      if (!hasSeenTutorial()) setShowTutorial(true)
     } catch (err) {
       console.error('Failed to load project:', err)
       toast.error('Failed to load project. Check the console for details.')
@@ -208,7 +213,7 @@ export default function App() {
 
         <div className="toolbar-actions">
           <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
-            {hasPlan ? 'Change Floor Plan' : 'Load Floor Plan'}
+            {hasPlan ? 'Change Plan' : 'Load Floor Plan'}
           </button>
           <input
             ref={fileInputRef}
@@ -251,7 +256,7 @@ export default function App() {
             </>
           )}
 
-          <button className="btn-secondary" onClick={handleLogout}>Sign out</button>
+          <UserMenu onLogout={handleLogout} />
         </div>
       </header>
 
@@ -342,6 +347,8 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {showTutorial && <HelpModal onClose={() => setShowTutorial(false)} />}
 
       <ToastHost />
       <ConfirmHost />
