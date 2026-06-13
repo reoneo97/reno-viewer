@@ -40,6 +40,10 @@ export function createProject(name: string): Promise<ApiProject> {
   return http.post('/projects', { name })
 }
 
+export function renameProject(id: string, name: string): Promise<ApiProject> {
+  return http.patch(`/projects/${id}`, { name })
+}
+
 export function deleteProject(id: string): Promise<null> {
   return http.delete(`/projects/${id}`)
 }

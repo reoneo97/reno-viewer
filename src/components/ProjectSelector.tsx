@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ApiProject } from '../types'
-import { createProject, deleteProject } from '../api'
+import { createProject, deleteProject, renameProject } from '../api'
 import { ThemeToggle } from './ThemeToggle'
 import { UserMenu } from './UserMenu'
 import { confirmDialog } from './ConfirmDialog'
@@ -17,6 +17,30 @@ export function ProjectSelector({ projects, onSelect, onProjectsChange, onLogout
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+
+  const startRename = (e: React.MouseEvent, p: ApiProject) => {
+    e.stopPropagation()
+    setRenamingId(p.id)
+    setRenameValue(p.name)
+  }
+
+  const commitRename = async (id: string) => {
+    const name = renameValue.trim()
+    setRenamingId(null)
+    const current = projects.find((p) => p.id === id)
+    if (!name || !current || name === current.name) return
+    // optimistic
+    onProjectsChange(projects.map((p) => (p.id === id ? { ...p, name } : p)))
+    try {
+      await renameProject(id, name)
+      toast.success('Project renamed')
+    } catch (err) {
+      onProjectsChange(projects.map((p) => (p.id === id ? { ...p, name: current.name } : p)))
+      toast.error(`Rename failed: ${err instanceof Error ? err.message : err}`)
+    }
+  }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,21 +128,52 @@ export function ProjectSelector({ projects, onSelect, onProjectsChange, onLogout
                   </div>
                   <div className="project-card-footer">
                     <div className="project-card-text">
-                      <span className="project-card-name">{p.name}</span>
+                      {renamingId === p.id ? (
+                        <input
+                          className="text-input project-rename-input"
+                          value={renameValue}
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={() => commitRename(p.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitRename(p.id) }
+                            if (e.key === 'Escape') { e.preventDefault(); setRenamingId(null) }
+                          }}
+                        />
+                      ) : (
+                        <span
+                          className="project-card-name"
+                          onClick={(e) => { if (e.detail === 2) startRename(e, p) }}
+                          title="Double-click to rename"
+                        >
+                          {p.name}
+                        </span>
+                      )}
                       <span className="project-card-meta">
                         {anchors.length > 0
                           ? `${anchors.length} pin${anchors.length !== 1 ? 's' : ''} · ${candidateCount} item${candidateCount !== 1 ? 's' : ''}`
                           : created ? `Created ${created}` : ' '}
                       </span>
                     </div>
-                    <button
-                      className="remove-btn"
-                      onClick={(e) => handleDelete(e, p.id)}
-                      title="Delete project"
-                      aria-label={`Delete project ${p.name}`}
-                    >
-                      ✕
-                    </button>
+                    <div className="project-card-actions">
+                      <button
+                        className="icon-btn project-card-action"
+                        onClick={(e) => startRename(e, p)}
+                        title="Rename project"
+                        aria-label={`Rename project ${p.name}`}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        className="icon-btn project-card-action"
+                        onClick={(e) => handleDelete(e, p.id)}
+                        title="Delete project"
+                        aria-label={`Delete project ${p.name}`}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
