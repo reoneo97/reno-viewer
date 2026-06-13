@@ -154,27 +154,27 @@ export function ItemsTable({ anchors, onRefresh }: Props) {
                         <div className="items-table-thumb items-table-no-thumb" />
                       )}
                     </td>
-                    <td className="budget-td items-table-name">
+                    <td className="budget-td items-table-name" data-label="Item">
                       {c.name}
                       {c.link && (
                         <a className="view-candidate-link" href={c.link} target="_blank" rel="noreferrer" style={{ marginLeft: 6 }}>↗</a>
                       )}
                     </td>
-                    <td className="budget-td">
+                    <td className="budget-td" data-label="Anchor">
                       <span className="items-table-anchor">
                         <span className="app-sidebar-dot" style={{ background: anchorColor(anchor.category) }} />
                         {anchor.label}
                       </span>
                     </td>
-                    <td className="budget-td">{anchor.category || '—'}</td>
-                    <td className="budget-td items-table-dims">{dims}</td>
-                    <td className="budget-td budget-td-right budget-amount">
+                    <td className="budget-td" data-label="Category">{anchor.category || '—'}</td>
+                    <td className="budget-td items-table-dims" data-label="Dimensions">{dims}</td>
+                    <td className="budget-td budget-td-right budget-amount" data-label="Price">
                       {priceOf(c) !== null ? `$${c.price}` : '—'}
                     </td>
-                    <td className="budget-td">
+                    <td className="budget-td" data-label="Status">
                       <StatusPicker status={c.status} onChange={(s) => setStatus(anchor.id, c.id, s)} />
                     </td>
-                    <td className="budget-td">
+                    <td className="budget-td items-table-edit-cell">
                       <button className="btn-secondary btn-compact" onClick={() => setEditAnchor(anchor)}>
                         Edit
                       </button>
