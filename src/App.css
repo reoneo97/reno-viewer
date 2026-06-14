@@ -1489,6 +1489,20 @@ button:disabled {
   flex: 1;
 }
 
+/* W × H × D group: three inputs separated by × multiplication signs. */
+.dim-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 3;
+}
+
+.dim-x {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
 .dim-label {
   font-size: 0.7rem;
   font-weight: 700;

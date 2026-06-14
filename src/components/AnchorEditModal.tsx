@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { Anchor, CandidateImage, CandidateStatus } from '../types'
 import { formatDims, getActiveCategories, mapApiCandidate } from '../types'
 import { addCandidateImage, createCandidate, deleteCandidate, removeFromAnchor, deleteAnchor, updateAnchor, updateCandidate, duplicateAnchor, listAvailableCandidates, linkCandidate, setCandidateStatus as apiSetCandidateStatus } from '../api'
@@ -33,6 +33,49 @@ interface AddForm {
 const emptyAddForm: AddForm = {
   images: [], name: '', description: '',
   width: '', height: '', depth: '', price: '', link: '',
+}
+
+type Dim = 'width' | 'height' | 'depth'
+
+// Dimensions entered as W × H × D, plus the price. Shared by the add form and
+// the per-candidate editor so both read identically.
+function DimPriceRow({ dims, price, onDim, onPrice, onCommit }: {
+  dims: Record<Dim, string>
+  price: string
+  onDim: (field: Dim, value: string) => void
+  onPrice: (value: string) => void
+  onCommit?: () => void
+}) {
+  return (
+    <div className="dim-row">
+      <div className="dim-group">
+        {(['width', 'height', 'depth'] as const).map((dim, i) => (
+          <Fragment key={dim}>
+            {i > 0 && <span className="dim-x" aria-hidden>×</span>}
+            <input
+              className="text-input dim-input"
+              value={dims[dim]}
+              onChange={(e) => onDim(dim, e.target.value)}
+              onBlur={onCommit}
+              placeholder={dim[0].toUpperCase()}
+              aria-label={dim}
+            />
+          </Fragment>
+        ))}
+      </div>
+      <div className="price-field">
+        <span className="dim-label">$</span>
+        <input
+          className="text-input dim-input"
+          value={price}
+          onChange={(e) => onPrice(e.target.value)}
+          onBlur={onCommit}
+          placeholder="—"
+          aria-label="price"
+        />
+      </div>
+    </div>
+  )
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -483,29 +526,13 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
               rows={3}
             />
 
-            <label className="field-label" style={{ marginTop: 12 }}>Dimensions &amp; Price</label>
-            <div className="dim-row">
-              {(['width', 'height', 'depth'] as const).map((dim) => (
-                <div key={dim} className="dim-field">
-                  <span className="dim-label">{dim[0].toUpperCase()}</span>
-                  <input
-                    className="text-input dim-input"
-                    value={addForm[dim]}
-                    onChange={(e) => setAddField({ [dim]: e.target.value })}
-                    placeholder="—"
-                  />
-                </div>
-              ))}
-              <div className="price-field">
-                <span className="dim-label">$</span>
-                <input
-                  className="text-input dim-input"
-                  value={addForm.price}
-                  onChange={(e) => setAddField({ price: e.target.value })}
-                  placeholder="—"
-                />
-              </div>
-            </div>
+            <label className="field-label" style={{ marginTop: 12 }}>Dimensions (W × H × D) &amp; Price</label>
+            <DimPriceRow
+              dims={{ width: addForm.width, height: addForm.height, depth: addForm.depth }}
+              price={addForm.price}
+              onDim={(f, v) => setAddField({ [f]: v })}
+              onPrice={(v) => setAddField({ price: v })}
+            />
 
             <label className="field-label" style={{ marginTop: 12 }}>Link</label>
             <input
@@ -660,30 +687,13 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
                           style={{ marginTop: 6 }}
                         />
                         <div className="candidate-item-fields">
-                          <div className="dim-row">
-                            {(['width', 'height', 'depth'] as const).map((dim) => (
-                              <div key={dim} className="dim-field">
-                                <span className="dim-label">{dim[0].toUpperCase()}</span>
-                                <input
-                                  className="text-input dim-input"
-                                  value={c[dim]}
-                                  onChange={(e) => updateCandidateField(c.id, { [dim]: e.target.value })}
-                                  onBlur={() => saveCandidateById(c.id)}
-                                  placeholder="—"
-                                />
-                              </div>
-                            ))}
-                            <div className="price-field">
-                              <span className="dim-label">$</span>
-                              <input
-                                className="text-input dim-input"
-                                value={c.price}
-                                onChange={(e) => updateCandidateField(c.id, { price: e.target.value })}
-                                onBlur={() => saveCandidateById(c.id)}
-                                placeholder="—"
-                              />
-                            </div>
-                          </div>
+                          <DimPriceRow
+                            dims={{ width: c.width, height: c.height, depth: c.depth }}
+                            price={c.price}
+                            onDim={(f, v) => updateCandidateField(c.id, { [f]: v })}
+                            onPrice={(v) => updateCandidateField(c.id, { price: v })}
+                            onCommit={() => saveCandidateById(c.id)}
+                          />
                           <input
                             className="text-input"
                             value={c.link}
