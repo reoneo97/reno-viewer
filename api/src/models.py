@@ -36,6 +36,7 @@ class User(SQLModel, table=True):
     username: str = Field(unique=True, index=True)
     password_hash: str  # bcrypt — never the raw password
     display_name: Optional[str] = None
+    is_admin: bool = False  # admins can manage other users
     created_at: datetime = Field(default_factory=_now)
 
 
@@ -181,6 +182,7 @@ class UserRead(SQLModel):
     id: uuid.UUID
     username: str
     display_name: Optional[str] = None
+    is_admin: bool = False
     created_at: datetime
 
 

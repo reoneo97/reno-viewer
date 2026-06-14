@@ -11,6 +11,7 @@ export function setToken(token: string): void {
 export function clearToken(): void {
   localStorage.removeItem('token')
   localStorage.removeItem('username')
+  localStorage.removeItem('isAdmin')
 }
 
 export function getUsername(): string {
@@ -19,6 +20,14 @@ export function getUsername(): string {
 
 export function setUsername(username: string): void {
   localStorage.setItem('username', username)
+}
+
+export function getIsAdmin(): boolean {
+  return localStorage.getItem('isAdmin') === '1'
+}
+
+export function setIsAdmin(isAdmin: boolean): void {
+  localStorage.setItem('isAdmin', isAdmin ? '1' : '0')
 }
 
 async function request(method: string, path: string, body?: unknown, isForm = false) {

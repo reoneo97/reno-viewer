@@ -42,6 +42,9 @@ _MIGRATIONS = [
     END $$""",
     # Per-project category list ([{name,color}]); NULL = use preset defaults.
     "ALTER TABLE projects ADD COLUMN IF NOT EXISTS categories JSONB",
+    # Admin flag for user management. Seed the founding accounts as admins.
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false",
+    "UPDATE users SET is_admin = true WHERE username IN ('reo', 'hwee')",
 ]
 
 

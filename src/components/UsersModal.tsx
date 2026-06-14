@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ApiUser } from '../types'
 import { changePassword, createUser, deleteUser, listUsers } from '../api'
-import { getUsername } from '../api/client'
+import { getUsername, getIsAdmin } from '../api/client'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { confirmDialog } from './ConfirmDialog'
 import { toast } from './Toast'
@@ -12,6 +12,7 @@ interface Props {
 
 export function UsersModal({ onClose }: Props) {
   const me = getUsername()
+  const isAdmin = getIsAdmin()
   const [users, setUsers] = useState<ApiUser[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -114,7 +115,8 @@ export function UsersModal({ onClose }: Props) {
                     {u.username}
                     {u.username === me && <span className="users-list-you"> (you)</span>}
                   </span>
-                  {u.username !== me && (
+                  {u.is_admin && <span className="users-list-badge">admin</span>}
+                  {isAdmin && u.username !== me && (
                     <button className="remove-btn" onClick={() => handleDelete(u)} title="Remove user">✕</button>
                   )}
                 </div>
@@ -122,27 +124,31 @@ export function UsersModal({ onClose }: Props) {
             </div>
           )}
 
-          <label className="field-label" style={{ marginTop: 18 }}>Add a user</label>
-          <form className="users-add-form" onSubmit={handleCreate}>
-            <input
-              className="text-input"
-              value={newUsername}
-              onChange={(e) => setNewUsername(e.target.value)}
-              placeholder="Username"
-              autoComplete="off"
-            />
-            <input
-              className="text-input"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Password"
-              autoComplete="new-password"
-            />
-            <button className="btn-primary" type="submit" disabled={creating}>
-              {creating ? '…' : 'Add'}
-            </button>
-          </form>
+          {isAdmin && (
+            <>
+              <label className="field-label" style={{ marginTop: 18 }}>Add a user</label>
+              <form className="users-add-form" onSubmit={handleCreate}>
+                <input
+                  className="text-input"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="Username"
+                  autoComplete="off"
+                />
+                <input
+                  className="text-input"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Password"
+                  autoComplete="new-password"
+                />
+                <button className="btn-primary" type="submit" disabled={creating}>
+                  {creating ? '…' : 'Add'}
+                </button>
+              </form>
+            </>
+          )}
 
           <label className="field-label" style={{ marginTop: 18 }}>Change your password</label>
           <form className="users-add-form" onSubmit={handleChangePassword}>

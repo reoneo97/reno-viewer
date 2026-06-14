@@ -3,9 +3,15 @@ import type { ApiAnchor, ApiCandidate, ApiProject, ApiUser } from '../types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export async function login(username: string, password: string): Promise<{ token: string; username: string }> {
+export async function login(username: string, password: string): Promise<{ token: string; username: string; isAdmin: boolean }> {
   const data = await http.post('/auth/login', { username, password })
-  return { token: data.access_token, username: data.username ?? username }
+  return { token: data.access_token, username: data.username ?? username, isAdmin: Boolean(data.is_admin) }
+}
+
+// Refresh the current user (e.g. on app load with a stored token) so admin
+// status stays accurate even if it changed since login.
+export function getMe(): Promise<ApiUser> {
+  return http.get('/auth/me')
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
