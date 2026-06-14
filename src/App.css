@@ -2914,6 +2914,15 @@ button:disabled {
   .items-table-edit-cell .btn-compact { width: 100%; padding: 10px; }
   .items-table td .status-picker { justify-content: flex-end; }
 
+  /* ── Candidate view modal: cards were one giant 1:1 square each ── */
+  .view-modal-body { padding: 14px; }
+  .view-candidate-grid { grid-template-columns: 1fr; gap: 12px; }
+  /* Short, wide preview instead of a full-width square so several
+     candidates fit on screen; tap opens the lightbox for detail. */
+  .view-candidate-img-wrap { aspect-ratio: 16 / 9; }
+  .view-modal-header { padding: 12px 14px; }
+  .view-modal-header h2 { font-size: 1.05rem; }
+
   .budget-figures { gap: 18px; flex-wrap: wrap; }
   .budget-target-row { flex-wrap: wrap; gap: 10px; }
   .budget-view .budget-table { font-size: 0.82rem; }
