@@ -48,6 +48,20 @@ export function deleteProject(id: string): Promise<null> {
   return http.delete(`/projects/${id}`)
 }
 
+// ── Categories (per project) ────────────────────────────────────────────────
+
+export function addCategory(projectId: string, name: string, color: string): Promise<ApiProject> {
+  return http.post(`/projects/${projectId}/categories`, { name, color })
+}
+
+export function renameCategory(projectId: string, oldName: string, name: string, color: string): Promise<ApiProject> {
+  return http.patch(`/projects/${projectId}/categories`, { old_name: oldName, name, color })
+}
+
+export function deleteCategory(projectId: string, name: string): Promise<ApiProject> {
+  return http.delete(`/projects/${projectId}/categories/${encodeURIComponent(name)}`)
+}
+
 export function uploadFloorPlan(projectId: string, file: File): Promise<ApiProject> {
   const form = new FormData()
   form.append('file', file)

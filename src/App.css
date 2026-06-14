@@ -3142,3 +3142,44 @@ button:disabled {
   font-size: 0.72rem;
   color: #555;
 }
+
+/* ── Categories manager ─────────────────────────────── */
+.cat-list { display: flex; flex-direction: column; gap: 6px; }
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-swatch {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cat-swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+.cat-swatch::-webkit-color-swatch { border: none; border-radius: 4px; }
+
+.cat-name-input { flex: 1; min-width: 0; }
+
+.cat-usage {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  min-width: 14px;
+  text-align: right;
+}
+
+.cat-add-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.cat-add-form .text-input { flex: 1; min-width: 0; }

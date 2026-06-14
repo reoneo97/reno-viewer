@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import AnchorCandidate, Candidate, Project
+from ..models import AnchorCandidate, Candidate, DEFAULT_CATEGORIES, Project
 from .. import storage
 
 router = APIRouter(tags=["snapshots"])
@@ -102,10 +102,12 @@ def _project_to_snapshot_data(project: Project, session: Session, inline: bool) 
         for a in project.anchors
     ]
 
+    cats = project.categories if project.categories is not None else DEFAULT_CATEGORIES
     return {
         "floorPlan": to_url(project.floor_plan_key) if project.floor_plan_key else "",
         "anchors": anchors_data,
         "budget": _compute_budget(anchors_data),
+        "categoryColors": {c["name"]: c["color"] for c in cats},
     }
 
 
@@ -119,8 +121,10 @@ def _build_html(data: dict) -> str:
   <title>Floor Plan</title>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    html, body {{ height: 100vh; height: 100dvh; }}
     body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-           background: #0f0f1a; color: #e0e0e0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }}
+           background: #0f0f1a; color: #e0e0e0; overflow: hidden; display: flex; flex-direction: column;
+           -webkit-tap-highlight-color: transparent; }}
     .toolbar {{ display: flex; align-items: center; gap: 12px; padding: 10px 20px; flex-shrink: 0;
                background: #16213e; border-bottom: 1px solid #2a2a4a; }}
     .app-title {{ font-weight: 700; font-size: 1.1rem; color: #a8d8ea; letter-spacing: .05em; }}
@@ -131,7 +135,8 @@ def _build_html(data: dict) -> str:
     .layout {{ display: flex; flex: 1; overflow: hidden; }}
     .canvas-area {{ flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }}
     .canvas-container {{ width: 100%; height: 100%; display: flex; align-items: center;
-                        justify-content: center; overflow: hidden; cursor: grab; user-select: none; }}
+                        justify-content: center; overflow: hidden; cursor: grab; user-select: none;
+                        touch-action: none; }}
     .canvas-inner {{ position: relative; display: inline-block; transform-origin: center center; }}
     .floor-plan-img {{ display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }}
 
@@ -226,6 +231,18 @@ def _build_html(data: dict) -> str:
     .legend-item {{ display: flex; align-items: center; gap: 8px; }}
     .legend-dot {{ width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,.2); }}
     .legend-label {{ font-size: .72rem; color: #ccc; white-space: nowrap; }}
+
+    /* ── Mobile: stack the plan above a full-width item list ── */
+    @media (max-width: 760px) {{
+      .layout {{ flex-direction: column; }}
+      .canvas-area {{ flex: none; height: 52vh; height: 52dvh; border-bottom: 1px solid #2a2a4a; }}
+      .sidebar {{ width: 100%; flex: 1; border-left: none; padding: 12px; }}
+      .legend {{ bottom: 10px; left: 10px; padding: 8px 10px; max-width: 60vw; }}
+      .sidebar-candidate img, .sidebar-no-img,
+      .sidebar-img-strip img {{ width: 60px; height: 60px; }}
+      /* Popovers can be wide on a phone — let them use the screen width */
+      .candidate-popover {{ max-width: 78vw; }}
+    }}
   </style>
 </head>
 <body>
@@ -246,14 +263,8 @@ def _build_html(data: dict) -> str:
   <script>
     var DATA = {safe_json};
 
-    var CATEGORY_COLORS = {{
-      'Furniture':       '#4a90d9',
-      'Lights and Fans': '#f1c40f',
-      'Bathroom':        '#1abc9c',
-      'Kitchen':         '#8e44ad',
-      'Appliances':      '#e67e22',
-      'Others':          '#95a5a6'
-    }};
+    // Colours come from the project's own category list (embedded above).
+    var CATEGORY_COLORS = DATA.categoryColors || {{}};
     function anchorColor(cat) {{ return CATEGORY_COLORS[cat] || '#7f8c8d'; }}
 
     var floorPlanImg   = document.getElementById('floorPlanImg');
@@ -270,26 +281,61 @@ def _build_html(data: dict) -> str:
       canvasInner.style.transform = 'translate(' + offset.x + 'px,' + offset.y + 'px) scale(' + scale + ')';
     }}
 
+    var clampScale = function(s) {{ return Math.min(Math.max(s, 0.3), 5); }};
+
     canvasContainer.addEventListener('wheel', function(e) {{
       e.preventDefault();
-      scale = Math.min(Math.max(scale * (e.deltaY > 0 ? 0.9 : 1.1), 0.3), 5);
+      scale = clampScale(scale * (e.deltaY > 0 ? 0.9 : 1.1));
       updateTransform();
     }}, {{ passive: false }});
 
-    canvasContainer.addEventListener('mousedown', function(e) {{
-      isPanning = true;
-      panStart = {{ x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y }};
-      canvasContainer.style.cursor = 'grabbing';
+    // Pointer-based pan + pinch-zoom — works for mouse and touch alike.
+    var pointers = {{}};
+    var pinch = {{ dist: 0, scale: 1, mx: 0, my: 0, ox: 0, oy: 0 }};
+    var dist = function(a, b) {{ return Math.hypot(a.x - b.x, a.y - b.y); }};
+    var pts = function() {{ return Object.keys(pointers).map(function(k) {{ return pointers[k]; }}); }};
+
+    canvasContainer.addEventListener('pointerdown', function(e) {{
+      pointers[e.pointerId] = {{ x: e.clientX, y: e.clientY }};
+      var p = pts();
+      if (p.length === 2) {{
+        pinch = {{ dist: dist(p[0], p[1]), scale: scale,
+                  mx: (p[0].x + p[1].x) / 2, my: (p[0].y + p[1].y) / 2, ox: offset.x, oy: offset.y }};
+        isPanning = false;
+      }} else if (p.length === 1) {{
+        isPanning = true;
+        panStart = {{ x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y }};
+        canvasContainer.style.cursor = 'grabbing';
+      }}
     }});
-    window.addEventListener('mousemove', function(e) {{
-      if (!isPanning) return;
-      offset = {{ x: panStart.ox + (e.clientX - panStart.x), y: panStart.oy + (e.clientY - panStart.y) }};
-      updateTransform();
+    canvasContainer.addEventListener('pointermove', function(e) {{
+      if (!(e.pointerId in pointers)) return;
+      pointers[e.pointerId] = {{ x: e.clientX, y: e.clientY }};
+      var p = pts();
+      if (p.length === 2) {{
+        var d = dist(p[0], p[1]);
+        var mid = {{ x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 }};
+        scale = clampScale(pinch.scale * (pinch.dist ? d / pinch.dist : 1));
+        offset = {{ x: pinch.ox + (mid.x - pinch.mx), y: pinch.oy + (mid.y - pinch.my) }};
+        updateTransform();
+      }} else if (p.length === 1 && isPanning) {{
+        offset = {{ x: panStart.ox + (e.clientX - panStart.x), y: panStart.oy + (e.clientY - panStart.y) }};
+        updateTransform();
+      }}
     }});
-    window.addEventListener('mouseup', function() {{
-      isPanning = false;
-      canvasContainer.style.cursor = 'grab';
-    }});
+    var endPointer = function(e) {{
+      delete pointers[e.pointerId];
+      var p = pts();
+      if (p.length === 1) {{
+        isPanning = true;
+        panStart = {{ x: p[0].x, y: p[0].y, ox: offset.x, oy: offset.y }};
+      }} else if (p.length === 0) {{
+        isPanning = false;
+        canvasContainer.style.cursor = 'grab';
+      }}
+    }};
+    canvasContainer.addEventListener('pointerup', endPointer);
+    canvasContainer.addEventListener('pointercancel', endPointer);
 
     // ── Budget summary card ──
     var BUDGET = DATA.budget || {{ lines: [], total: 0, chosen: 0, undecided: 0 }};
@@ -463,16 +509,29 @@ def _build_html(data: dict) -> str:
       }}
       wrapper.appendChild(pin);
 
-      // Hover: show popover + highlight sidebar section
+      // Hover (desktop) shows the popover; tap (touch) toggles it, since
+      // there is no hover on touch screens.
       var popover = buildPopover(anchor);
-      wrapper.addEventListener('mouseenter', function() {{
+      var showPopover = function() {{
         wrapper.appendChild(popover);
         section.classList.add('active');
         section.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }});
-      }});
-      wrapper.addEventListener('mouseleave', function() {{
+      }};
+      var hidePopover = function() {{
         if (popover.parentNode) popover.parentNode.removeChild(popover);
         section.classList.remove('active');
+      }};
+      wrapper.addEventListener('mouseenter', showPopover);
+      wrapper.addEventListener('mouseleave', hidePopover);
+      // Tap toggles on touch; closes any other open popover first.
+      pin.addEventListener('click', function(e) {{
+        e.stopPropagation();
+        var open = popover.parentNode;
+        document.querySelectorAll('.candidate-popover').forEach(function(p) {{
+          if (p.parentNode) p.parentNode.removeChild(p);
+        }});
+        document.querySelectorAll('.sidebar-anchor.active').forEach(function(s) {{ s.classList.remove('active'); }});
+        if (!open) showPopover();
       }});
 
       canvasInner.appendChild(wrapper);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Anchor, CandidateImage, CandidateStatus } from '../types'
-import { ANCHOR_CATEGORIES, formatDims, mapApiCandidate } from '../types'
+import { formatDims, getActiveCategories, mapApiCandidate } from '../types'
 import { addCandidateImage, createCandidate, deleteCandidate, removeFromAnchor, deleteAnchor, updateAnchor, updateCandidate, duplicateAnchor, listAvailableCandidates, linkCandidate, setCandidateStatus as apiSetCandidateStatus } from '../api'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { confirmDialog } from './ConfirmDialog'
@@ -553,7 +553,11 @@ export function AnchorEditModal({ anchor, onSave }: Props) {
             onChange={(e) => { setCategory(e.target.value); void saveAnchorFields({ category: e.target.value }) }}
           >
             <option value="">— None —</option>
-            {ANCHOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {getActiveCategories().map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+            {/* Keep a stale value selectable if its category was since removed */}
+            {category && !getActiveCategories().some((c) => c.name === category) && (
+              <option value={category}>{category}</option>
+            )}
           </select>
 
           <label className="field-label" style={{ marginTop: 16 }}>Notes</label>
