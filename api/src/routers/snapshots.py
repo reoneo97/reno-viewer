@@ -143,6 +143,9 @@ def _build_html(data: dict) -> str:
     /* ── Sidebar ── */
     .sidebar {{ width: 300px; flex-shrink: 0; background: #16213e; border-left: 1px solid #2a2a4a;
                overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }}
+    /* Keep cards at natural height so the sidebar scrolls instead of
+       squashing them flat when its own height is constrained (mobile). */
+    .sidebar > * {{ flex-shrink: 0; }}
     .sidebar-anchor {{ border: 1px solid #2a2a4a; border-radius: 8px; overflow: hidden; transition: border-color 0.2s; }}
     .sidebar-anchor.active {{ border-color: var(--cat-color, #4a90d9); }}
     .sidebar-anchor-header {{ display: flex; align-items: center; gap: 8px; padding: 10px 12px;
