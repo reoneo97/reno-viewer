@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ApiProject } from './types'
 import { mapApiAnchor, setActiveCategories, DEFAULT_CATEGORIES } from './types'
-import { createAnchor, getProject, listProjects, uploadFloorPlan, shareProject, downloadProject } from './api'
-import { clearToken, getToken } from './api/client'
+import { createAnchor, getProject, listProjects, uploadFloorPlan, shareProject, downloadProject, getMe } from './api'
+import { clearToken, getToken, setIsAdmin } from './api/client'
 import { FloorPlanCanvas } from './components/FloorPlanCanvas'
 import type { FocusRequest } from './components/FloorPlanCanvas'
 import { ItemizedSidebar } from './components/ItemizedSidebar'
@@ -49,6 +49,8 @@ export default function App() {
   // On mount: check for existing token
   useEffect(() => {
     if (!getToken()) { setPhase('login'); return }
+    // Refresh admin status in case it changed since this token was issued.
+    getMe().then((u) => setIsAdmin(u.is_admin)).catch(() => { /* token check below handles auth */ })
     listProjects()
       .then((ps) => { setProjects(ps); setPhase('select') })
       .catch(() => { clearToken(); setPhase('login') })

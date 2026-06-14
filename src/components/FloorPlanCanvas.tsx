@@ -135,6 +135,10 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
   }
 
   const handleWheel = (e: React.WheelEvent) => {
+    // Candidate modals render within the canvas subtree, so their wheel events
+    // bubble here. Only zoom when scrolling the canvas itself — let scrolls
+    // inside an open modal scroll the modal normally.
+    if ((e.target as HTMLElement).closest('.modal-backdrop')) return
     e.preventDefault()
     const delta = e.deltaY > 0 ? 0.9 : 1.1
     setScale(clampScale(scaleRef.current * delta))
@@ -150,6 +154,9 @@ export function FloorPlanCanvas({ floorPlanUrl, anchors, isEditMode, onAddAnchor
   }
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    // Ignore interactions originating inside an open modal (rendered within
+    // this subtree) so the canvas doesn't pan/pinch behind it.
+    if ((e.target as HTMLElement).closest('.modal-backdrop')) return
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const pts = [...pointers.current.values()]
     if (pts.length === 2) {

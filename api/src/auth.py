@@ -53,6 +53,7 @@ def seed_admin() -> None:
         session.add(User(
             username=settings.auth_username,
             password_hash=password_hash,
+            is_admin=True,  # the founding account manages everyone else
         ))
         session.commit()
 
@@ -75,6 +76,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     username: str
+    is_admin: bool = False
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -83,7 +85,11 @@ def login(body: LoginRequest, session: Session = Depends(get_session)):
     # Same generic error whether the username or the password is wrong.
     if not user or not _verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    return TokenResponse(access_token=_create_token(user.username), username=user.username)
+    return TokenResponse(
+        access_token=_create_token(user.username),
+        username=user.username,
+        is_admin=user.is_admin,
+    )
 
 
 def require_auth(credentials: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
@@ -97,7 +103,30 @@ def require_auth(credentials: HTTPAuthorizationCredentials = Depends(bearer)) ->
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
 
-# ── User management (any authenticated user — it's a 2-3 person tool) ─────────
+def current_user(
+    username: str = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> User:
+    user = session.exec(select(User).where(User.username == username)).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
+    return user
+
+
+def require_admin(user: User = Depends(current_user)) -> User:
+    if not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins only")
+    return user
+
+
+@router.get("/me", response_model=UserRead)
+def me(user: User = Depends(current_user)):
+    return user
+
+
+# ── User management ───────────────────────────────────────────────────────────
+# Listing is open to any signed-in user (see who's on the team); creating and
+# deleting accounts is admin-only. Changing your own password is self-service.
 
 users_router = APIRouter(prefix="/users", tags=["users"])
 
@@ -108,7 +137,11 @@ def list_users(session: Session = Depends(get_session)):
 
 
 @users_router.post("", response_model=UserRead, status_code=201)
-def create_user(body: UserCreate, session: Session = Depends(get_session)):
+def create_user(
+    body: UserCreate,
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
     username = body.username.strip().lower()
     if not username or len(body.password) < 4:
         raise HTTPException(422, "Username required; password must be at least 4 characters")
@@ -144,13 +177,13 @@ def change_password(
 @users_router.delete("/{user_id}", status_code=204)
 def delete_user(
     user_id: str,
-    username: str = Depends(require_auth),
+    admin: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(404, "User not found")
-    if user.username == username:
+    if user.username == admin.username:
         raise HTTPException(409, "You can't delete the account you're signed in with")
     session.delete(user)
     session.commit()

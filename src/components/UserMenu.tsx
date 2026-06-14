@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getUsername } from '../api/client'
+import { getUsername, getIsAdmin } from '../api/client'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { UsersModal } from './UsersModal'
 import { HelpModal } from './HelpModal'
@@ -17,6 +17,7 @@ export function UserMenu({ onLogout }: Props) {
   const [showHelp, setShowHelp] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const username = getUsername()
+  const isAdmin = getIsAdmin()
 
   useEscapeKey(() => setOpen(false), open)
 
@@ -57,8 +58,10 @@ export function UserMenu({ onLogout }: Props) {
             <button className="menu-item" role="menuitem" onClick={pick(() => setShowUsers(true))}>
               <span className="menu-item-icon" aria-hidden>👥</span>
               <span>
-                Manage users
-                <span className="menu-item-hint">Add accounts, change password</span>
+                {isAdmin ? 'Manage users' : 'Account'}
+                <span className="menu-item-hint">
+                  {isAdmin ? 'Add accounts, change password' : 'Change your password'}
+                </span>
               </span>
             </button>
             <button className="menu-item" role="menuitem" onClick={pick(onLogout)}>
