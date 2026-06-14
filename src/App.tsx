@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ApiProject } from './types'
-import { mapApiAnchor } from './types' // still used for FloorPlanCanvas
+import { mapApiAnchor, setActiveCategories, DEFAULT_CATEGORIES } from './types'
 import { createAnchor, getProject, listProjects, uploadFloorPlan, shareProject, downloadProject } from './api'
 import { clearToken, getToken } from './api/client'
 import { FloorPlanCanvas } from './components/FloorPlanCanvas'
@@ -14,6 +14,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { ExportMenu } from './components/ExportMenu'
 import { UserMenu } from './components/UserMenu'
 import { HelpModal, hasSeenTutorial } from './components/HelpModal'
+import { CategoriesModal } from './components/CategoriesModal'
 import { QRCodeCanvas } from 'qrcode.react'
 import { ToastHost, toast } from './components/Toast'
 import { ConfirmHost } from './components/ConfirmDialog'
@@ -40,6 +41,7 @@ export default function App() {
   const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null)
   // Auto-open the tutorial the first time someone lands in a project.
   const [showTutorial, setShowTutorial] = useState(false)
+  const [showCategories, setShowCategories] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEscapeKey(() => setShareUrl(null), shareUrl !== null)
@@ -181,8 +183,15 @@ export default function App() {
   }
 
   // phase === 'view'
+  // Publish this project's categories so anchorColor() across the view resolves
+  // to the project's own palette. Set in render so children read it this pass.
+  setActiveCategories(project?.categories ?? null)
   const anchors = project ? project.anchors.map(mapApiAnchor) : []
   const hasPlan = Boolean(project?.floor_plan_url)
+  const categoryUsage = anchors.reduce<Record<string, number>>((acc, a) => {
+    if (a.category) acc[a.category] = (acc[a.category] ?? 0) + 1
+    return acc
+  }, {})
 
   const locateAnchor = (anchorId: string) => {
     setViewTab('plan')
@@ -240,6 +249,13 @@ export default function App() {
                 aria-label="Toggle item list"
               >
                 ☰
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => setShowCategories(true)}
+                title="Manage categories"
+              >
+                Categories
               </button>
             </>
           )}
@@ -355,6 +371,16 @@ export default function App() {
       </main>
 
       {showTutorial && <HelpModal onClose={() => setShowTutorial(false)} />}
+
+      {showCategories && project && (
+        <CategoriesModal
+          projectId={project.id}
+          categories={project.categories ?? DEFAULT_CATEGORIES}
+          usageCounts={categoryUsage}
+          onChanged={(updated) => setProject(updated)}
+          onClose={() => setShowCategories(false)}
+        />
+      )}
 
       <ToastHost />
       <ConfirmHost />

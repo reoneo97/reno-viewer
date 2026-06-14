@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import AnchorCandidate, Candidate, Project
+from ..models import AnchorCandidate, Candidate, DEFAULT_CATEGORIES, Project
 from .. import storage
 
 router = APIRouter(tags=["snapshots"])
@@ -102,10 +102,12 @@ def _project_to_snapshot_data(project: Project, session: Session, inline: bool) 
         for a in project.anchors
     ]
 
+    cats = project.categories if project.categories is not None else DEFAULT_CATEGORIES
     return {
         "floorPlan": to_url(project.floor_plan_key) if project.floor_plan_key else "",
         "anchors": anchors_data,
         "budget": _compute_budget(anchors_data),
+        "categoryColors": {c["name"]: c["color"] for c in cats},
     }
 
 
@@ -246,14 +248,8 @@ def _build_html(data: dict) -> str:
   <script>
     var DATA = {safe_json};
 
-    var CATEGORY_COLORS = {{
-      'Furniture':       '#4a90d9',
-      'Lights and Fans': '#f1c40f',
-      'Bathroom':        '#1abc9c',
-      'Kitchen':         '#8e44ad',
-      'Appliances':      '#e67e22',
-      'Others':          '#95a5a6'
-    }};
+    // Colours come from the project's own category list (embedded above).
+    var CATEGORY_COLORS = DATA.categoryColors || {{}};
     function anchorColor(cat) {{ return CATEGORY_COLORS[cat] || '#7f8c8d'; }}
 
     var floorPlanImg   = document.getElementById('floorPlanImg');

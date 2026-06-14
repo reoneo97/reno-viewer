@@ -20,8 +20,35 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 export const DEFAULT_ANCHOR_COLOR = '#7d7568'
 
+export interface Category {
+  name: string
+  color: string
+}
+
+// Preset categories seeded into new projects (mirrors api DEFAULT_CATEGORIES).
+// Also the fallback for legacy projects whose `categories` is still null.
+export const DEFAULT_CATEGORIES: Category[] = ANCHOR_CATEGORIES.map((name) => ({
+  name,
+  color: CATEGORY_COLORS[name] ?? DEFAULT_ANCHOR_COLOR,
+}))
+
+// The categories of the project currently open. App sets this from the loaded
+// project (in render, so children read the fresh value in the same pass),
+// letting the many anchorColor() call sites stay prop-free.
+let activeCategories: Category[] | null = null
+
+export function setActiveCategories(categories: Category[] | null): void {
+  activeCategories = categories
+}
+
+export function getActiveCategories(): Category[] {
+  return activeCategories ?? DEFAULT_CATEGORIES
+}
+
 export function anchorColor(category: string): string {
-  return CATEGORY_COLORS[category] ?? DEFAULT_ANCHOR_COLOR
+  const list = activeCategories ?? DEFAULT_CATEGORIES
+  const found = list.find((c) => c.name === category)
+  return found?.color ?? CATEGORY_COLORS[category] ?? DEFAULT_ANCHOR_COLOR
 }
 
 export function formatDims(w: string, h: string, d: string): string {
@@ -112,6 +139,7 @@ export interface ApiProject {
   id: string
   name: string
   floor_plan_url: string | null
+  categories: Category[] | null
   created_at: string
   anchors: ApiAnchor[]
 }

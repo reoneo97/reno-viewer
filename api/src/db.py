@@ -40,6 +40,8 @@ _MIGRATIONS = [
             ALTER TABLE anchor_candidates DROP COLUMN chosen;
         END IF;
     END $$""",
+    # Per-project category list ([{name,color}]); NULL = use preset defaults.
+    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS categories JSONB",
 ]
 
 

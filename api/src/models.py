@@ -6,9 +6,22 @@ def _now() -> datetime:
 from typing import List, Optional
 import uuid
 
-from sqlalchemy import Column, ForeignKey
+from sqlalchemy import Column, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlmodel import Field, Relationship, SQLModel
+
+
+# Preset categories seeded into every new project. Projects own a mutable copy
+# from then on, so editing one project never affects another. Kept in sync with
+# the frontend's defaults in src/types.ts.
+DEFAULT_CATEGORIES: List[dict] = [
+    {"name": "Furniture", "color": "#b5654a"},
+    {"name": "Lights and Fans", "color": "#c99a3c"},
+    {"name": "Bathroom", "color": "#5f8d83"},
+    {"name": "Kitchen", "color": "#8a6d8f"},
+    {"name": "Appliances", "color": "#6e82a3"},
+    {"name": "Others", "color": "#8d8678"},
+]
 
 
 # ── Table models ──────────────────────────────────────────────────────────────
@@ -35,6 +48,9 @@ class Project(SQLModel, table=True):
     )
     name: str
     floor_plan_key: Optional[str] = None
+    # Per-project category list: [{name, color}]. Null on legacy projects,
+    # which the app treats as the preset defaults until first edited.
+    categories: Optional[List[dict]] = Field(default=None, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=_now)
 
     anchors: List["Anchor"] = Relationship(
@@ -181,6 +197,17 @@ class ProjectUpdate(SQLModel):
     name: Optional[str] = None
 
 
+class CategoryCreate(SQLModel):
+    name: str
+    color: str
+
+
+class CategoryUpdate(SQLModel):
+    old_name: str
+    name: str
+    color: str
+
+
 class AnchorCreate(SQLModel):
     x: float
     y: float
@@ -245,6 +272,7 @@ class ProjectRead(SQLModel):
     id: uuid.UUID
     name: str
     floor_plan_url: Optional[str] = None
+    categories: Optional[List[dict]] = None
     created_at: datetime
     anchors: List[AnchorRead] = []
 
