@@ -19,9 +19,20 @@ const parsePrice = (p: string) => {
 // Side-by-side comparison of 2–4 candidates: the screen you huddle over
 // when deciding. The lowest price is highlighted.
 export function CompareView({ title, candidates, onSetStatus, onClose }: Props) {
-  const [lightbox, setLightbox] = useState<CandidateImage | null>(null)
+  const [lightbox, setLightbox] = useState<{ candidate: CandidateImage; index: number } | null>(null)
+  // Per-candidate selected image index, so each column can flip through its
+  // own photos independently.
+  const [imgIndex, setImgIndex] = useState<Record<string, number>>({})
 
   useEscapeKey(() => onClose(), lightbox === null)
+
+  const step = (c: CandidateImage, delta: number) => (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setImgIndex((prev) => {
+      const cur = prev[c.id] ?? 0
+      return { ...prev, [c.id]: (cur + delta + c.urls.length) % c.urls.length }
+    })
+  }
 
   const prices = candidates.map((c) => parsePrice(c.price))
   const validPrices = prices.filter((p): p is number => p !== null)
@@ -41,19 +52,34 @@ export function CompareView({ title, candidates, onSetStatus, onClose }: Props) 
           {candidates.map((c, i) => {
             const price = prices[i]
             const isCheapest = minPrice !== null && price === minPrice
+            const active = Math.min(imgIndex[c.id] ?? 0, Math.max(0, c.urls.length - 1))
+            const hasMany = c.urls.length > 1
             return (
               <div key={c.id} className={`compare-col ${c.status === 'chosen' ? 'compare-col-chosen' : ''}`}>
-                <button
-                  className="compare-img-wrap"
-                  onClick={() => c.urls.length > 0 && setLightbox(c)}
-                  title={c.urls.length > 0 ? 'View full size' : undefined}
-                >
-                  {c.urls[0]
-                    ? <img src={c.urls[0]} alt={c.name} />
-                    : <span className="view-candidate-no-img">No image</span>
-                  }
-                  {c.urls.length > 1 && <span className="compare-img-count">{c.urls.length} photos</span>}
-                </button>
+                <div className="compare-img-wrap">
+                  <button
+                    className="compare-img-btn"
+                    onClick={() => c.urls.length > 0 && setLightbox({ candidate: c, index: active })}
+                    title={c.urls.length > 0 ? 'View full size' : undefined}
+                  >
+                    {c.urls[active]
+                      ? <img src={c.urls[active]} alt={c.name} />
+                      : <span className="view-candidate-no-img">No image</span>
+                    }
+                  </button>
+                  {hasMany && (
+                    <>
+                      <button className="compare-img-nav compare-img-prev" aria-label="Previous photo" onClick={step(c, -1)}>‹</button>
+                      <button className="compare-img-nav compare-img-next" aria-label="Next photo" onClick={step(c, 1)}>›</button>
+                      <div className="compare-img-dots" aria-hidden>
+                        {c.urls.map((_, di) => (
+                          <span key={di} className={`compare-img-dot ${di === active ? 'active' : ''}`} />
+                        ))}
+                      </div>
+                      <span className="compare-img-count">{active + 1} / {c.urls.length}</span>
+                    </>
+                  )}
+                </div>
 
                 <div className="compare-col-info">
                   <p className="compare-name">{c.name}</p>
@@ -89,8 +115,9 @@ export function CompareView({ title, candidates, onSetStatus, onClose }: Props) 
 
       {lightbox && (
         <Lightbox
-          images={lightbox.urls}
-          caption={lightbox.name}
+          images={lightbox.candidate.urls}
+          initialIndex={lightbox.index}
+          caption={lightbox.candidate.name}
           onClose={() => setLightbox(null)}
         />
       )}
